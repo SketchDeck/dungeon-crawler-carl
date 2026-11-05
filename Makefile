@@ -13,6 +13,7 @@ check:
 
 web:
 	mkdir -p build/web
+	touch build/.gdignore
 	$(GODOT) --headless --path . --export-debug Web build/web/index.html
 
 serve: web

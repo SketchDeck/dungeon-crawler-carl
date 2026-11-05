@@ -72,4 +72,5 @@ There is no automated gameplay test suite yet. To smoke-test a change, run
 movement in all directions and verify the player stays inside the room.
 
 Godot's `.godot/` cache, export credentials, and generated `build/` files are
-ignored by Git. No server-side state is stored.
+ignored by Git. The web build also creates `build/.gdignore` so Godot does not
+import its own exported files. No server-side state is stored.
