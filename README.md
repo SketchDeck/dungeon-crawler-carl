@@ -4,18 +4,36 @@ A 2D action platformer prototype in Godot 4 (GDScript). You play Carl, with
 Princess Donut riding on his shoulder, and kick your way through dungeon rooms.
 No logins, database, backend, or JavaScript packages are required.
 
-**Status: Milestone 2 (health and healing).** The game boots into a test
-room with platforms, four Goblins and two potions. Floor/room structure is
-documented in [docs/floor-layouts.md](docs/floor-layouts.md).
+**Status: Milestone 3 (rooms and lives).** The game starts at the Floor 1
+entrance. Floor 1 has 14 rooms connected as in
+[docs/floor-layouts.md](docs/floor-layouts.md). The first four rooms are a
+tutorial, with signs that explain the controls.
+
+Rooms and lives:
+
+- **Combat rooms** lock their exits until every enemy is dead. A cleared room
+  stays cleared.
+- **Challenge rooms** hold a trial that unlocks a reward chest: climb to it,
+  kick three switches, cross pits, or defeat the guards. Opening the chest
+  shows a placeholder message; the upgrade choice comes in Milestone 6.
+- **Safe rooms** have no enemies and a fountain that fully heals you once per
+  floor run.
+- The **boss room** (F1-08) is an empty arena with no exit until Milestone 5.
+- Doors only lead forward, following the arrows in the layout.
+- You have **3 lives**. Dying costs one life and restarts the current room:
+  its enemies come back, you return to full health, and you keep your
+  potions. Progress in other rooms is kept.
+- Losing the last life shows **Game Over**. Restarting the floor sends you
+  back to the entrance with 3 lives, 3 potions and every room reset.
+- Falling into a pit costs 20 HP and returns you to the room's entrance.
 
 Health and healing rules:
 
 - You start with **3 potions** and can carry at most **10**. Each potion heals
   **30 HP**, capped at your maximum. A potion isn't used up if you're at full
   health, and there's a 0.5s cooldown between drinks.
-- Enemies drop a potion **20%** of the time (`potion_drop_chance`). In the
-  test room only it's raised to 50% so drops are easy to see. If you already
-  carry 10, a potion stays on the ground until you have room.
+- Enemies drop a potion **20%** of the time (`potion_drop_chance`). If you
+  already carry 10, a potion stays on the ground until you have room.
 - **Automatic healing:** 3 seconds after combat ends, health regenerates to
   full over 10 seconds. Fighting again, taking damage or dying stops it; any
   healing already done is kept. It never runs during a boss fight.
@@ -33,10 +51,12 @@ Health and healing rules:
 | Kick combo (tap ×3) | J | West face button |
 | Power kick (hold, release) | K | North face button |
 | Drink potion | H | D-pad Down |
-| Respawn Goblins (debug) | R | — |
+| Interact (chest, fountain) | E | Left trigger |
+| Skip to next room (debug) | N | — |
 
 The input map already contains the later actions (switch mode, special,
-interact, pause); they do nothing yet.
+pause); they do nothing yet. The N debug key goes through the room's first
+exit even when it's locked. Turn it off with `debug_keys` on the Main node.
 
 ## Prerequisites
 
@@ -61,16 +81,18 @@ project. There are no external assets to download; all art is drawn in code.
 ### Project layout
 
 ```text
-scenes/main/        Main.tscn — game root (current room, player, HUD)
+scenes/main/        Main.tscn — game root (player, HUD, room manager, lives flow)
 scenes/player/      Player.tscn + PlayerController (movement), PlayerCombat,
                     PlayerHealth, PotionInventory, HealthRegen (auto-heal),
                     PlayerVisual (placeholder art)
 scenes/enemies/     EnemyBase.gd (health/knockback/death/drops), Goblin
 scenes/pickups/     PotionPickup
-scenes/rooms/       RoomBase.gd, TestRoom
-scenes/environment/ SolidBlock (placeholder terrain, editable in the editor)
-scenes/ui/          HUD
-scripts/            CombatStateManager.gd (in/out of combat), Fx.gd, GameCamera.gd
+scenes/rooms/       RoomBase.gd (builds a room from its text map); floor1/ room scenes
+scenes/environment/ SolidBlock, Door, Chest, Fountain, FloorSwitch, RoomSign
+scenes/ui/          HUD, GameOver
+scripts/            GameManager.gd (autoload: lives), RoomManager.gd (transitions,
+                    room state), FloorData.gd (floor -> room scenes),
+                    CombatStateManager.gd, Fx.gd, GameCamera.gd
 scripts/abilities/  Ability base, KickCombo, ChargedKick
 scripts/combat/     Hit, HitQuery (instant hitbox queries)
 scripts/fx/         Placeholder effects; scripts/Fx.gd autoload (shake, hit stop)
@@ -79,6 +101,22 @@ tests/              Headless test runner
 
 Tuning values (speeds, jump, dodge, damage, cooldowns, enemy stats) are
 `@export` variables, so you can change them in the Inspector.
+
+### Editing rooms
+
+Each room scene's `layout` property is a text map of 32px tiles. The room is
+built from it when the game runs, so the map won't show in the editor's 2D
+view. Legend:
+
+```text
+#  solid      =  one-way platform   G  gate (opens when the trial is done)
+E  entrance   1-9  exit door N      g  Goblin
+C  chest      F  fountain           S  switch     i  sign     B  boss spawn
+```
+
+Signs take their text from `signs`, in reading order. Exit door N leads to
+`exits[N-1]`. A full jump clears 3 tiles, so keep steps at 3 tiles or less;
+a test checks the jump height.
 
 ## Run in a browser
 
@@ -137,9 +175,14 @@ seconds. The tests cover:
   10s to full, combat stopping regeneration and the new rate afterwards,
   potions during regeneration, no healing while dead or during a boss fight,
   and potions kept after death.
+- **Rooms and lives:** Floor 1 rooms and exits match the layout doc,
+  transitions arrive in the right room, combat rooms lock and unlock, cleared
+  rooms stay cleared, each death costs exactly one life and resets the room,
+  Game Over restarts the floor, pit falls, all three trial types, the
+  fountain, and the jump-height rule.
 
-Game feel still has to be checked by hand: run the game, fight the Goblins,
-drink potions, collect drops, then step away and watch health come back.
+Game feel still has to be checked by hand: play through Floor 1, die a few
+times, and run out of lives once.
 
 Godot's `.godot/` cache, export credentials, and generated `build/` files are
 ignored by Git. The web build also creates `build/.gdignore` so Godot does not

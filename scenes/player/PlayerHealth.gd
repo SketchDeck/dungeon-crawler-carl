@@ -37,8 +37,9 @@ func missing() -> float:
 
 
 ## Applies damage unless invulnerable. Returns true if damage was applied.
-func take_damage(amount: float) -> bool:
-	if amount <= 0.0 or is_invulnerable():
+## ignore_invuln is for environmental damage such as falling into a pit.
+func take_damage(amount: float, ignore_invuln := false) -> bool:
+	if amount <= 0.0 or is_dead or (is_invulnerable() and not ignore_invuln):
 		return false
 	current = clampf(current - amount, 0.0, max_health)
 	_invuln = hurt_invuln_time

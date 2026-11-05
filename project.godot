@@ -21,6 +21,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 [autoload]
 
 Fx="*res://scripts/Fx.gd"
+GameManager="*res://scripts/GameManager.gd"
 
 [display]
 
@@ -106,6 +107,7 @@ pause={
 2d_physics/layer_1="world"
 2d_physics/layer_2="player"
 2d_physics/layer_3="enemies"
+2d_physics/layer_4="hittable"
 
 [rendering]
 

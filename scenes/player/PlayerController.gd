@@ -13,7 +13,8 @@ signal respawned
 @export var air_decel := 900.0
 
 @export_group("Jump")
-@export var jump_velocity := -560.0
+## -600 with gravity 1500 gives ~120px (3.75 tiles) of jump height.
+@export var jump_velocity := -600.0
 @export var gravity := 1500.0
 @export var fall_gravity_multiplier := 1.4
 ## Upward velocity is multiplied by this when jump is released early.

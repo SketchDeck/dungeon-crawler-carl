@@ -6,6 +6,8 @@ extends RefCounted
 const LAYER_WORLD := 1
 const LAYER_PLAYER := 2
 const LAYER_ENEMIES := 4
+## Non-enemy things player attacks can strike (switches, breakables).
+const LAYER_HITTABLE := 8
 
 
 static func box(ctx: Node2D, center: Vector2, size: Vector2, mask: int) -> Array[Node]:

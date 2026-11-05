@@ -11,6 +11,8 @@ var _current := ""
 
 
 func _ready() -> void:
+	# Keep running while the Game Over screen pauses the tree.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_run.call_deferred()
 
 
@@ -45,6 +47,20 @@ func _run() -> void:
 	await _test("no regen while dead", test_regen_dead)
 	await _test("no regen during boss encounter", test_regen_boss)
 	await _test("respawn keeps potions and resets healing", test_respawn_keeps_potions)
+	# Milestone 3: rooms and lives.
+	await _test("floor 1 rooms match the layout document", test_floor1_graph)
+	await _test("room transitions lead to the correct destinations", test_room_transition)
+	await _test("combat room locks until enemies are cleared", test_combat_room_locking)
+	await _test("cleared rooms remain cleared", test_cleared_room_stays_cleared)
+	await _test("death removes one life and resets the room", test_death_resets_room)
+	await _test("death keeps progress in other rooms", test_death_keeps_floor_progress)
+	await _test("game over restarts the floor", test_game_over_restart)
+	await _test("falling into a pit hurts and returns to entrance", test_pit_fall)
+	await _test("switch trial opens the vault and chest", test_switch_trial)
+	await _test("defeat trial unlocks the chest", test_defeat_trial)
+	await _test("reach trial chest is open from the start", test_reach_trial)
+	await _test("fountain heals to full once", test_fountain)
+	await _test("full jump clears a 3-tile ledge (room design rule)", test_jump_clears_three_tiles)
 	print("\n%d passed, %d failed" % [_passed, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
@@ -56,6 +72,7 @@ func _test(name: String, fn: Callable) -> void:
 	var before := _failed
 	await fn.call()
 	print("%s  %s" % ["PASS" if _failed == before else "FAIL", name])
+	get_tree().paused = false
 	for child in get_children():
 		if child.name.begins_with("TestWorld"):
 			child.queue_free()
@@ -568,3 +585,264 @@ func test_respawn_keeps_potions() -> void:
 	check_eq(p.health.current, 100.0, "full health")
 	check(not p.combat_state.in_combat, "combat state reset")
 	check(p.regen.state == HealthRegen.State.IDLE, "regen reset")
+
+
+# --- Milestone 3: rooms and lives -------------------------------------------
+
+const MAIN_SCENE := preload("res://scenes/main/Main.tscn")
+
+## Source of truth: docs/floor-layouts.md
+const FLOOR1_EXITS := {
+	"F1-01": ["F1-02"], "F1-02": ["F1-03"], "F1-03": ["F1-04"], "F1-04": ["F1-05"],
+	"F1-05": ["F1-U1", "F1-D1"],
+	"F1-U1": ["F1-U2"], "F1-U2": ["F1-U3"], "F1-U3": ["F1-06"],
+	"F1-D1": ["F1-D2"], "F1-D2": ["F1-D3"], "F1-D3": ["F1-06"],
+	"F1-06": ["F1-07"], "F1-07": ["F1-08"], "F1-08": [],
+}
+const FLOOR1_TYPES := {
+	"F1-01": RoomBase.RoomType.ENTRANCE, "F1-02": RoomBase.RoomType.COMBAT,
+	"F1-03": RoomBase.RoomType.SAFE, "F1-04": RoomBase.RoomType.CHALLENGE,
+	"F1-05": RoomBase.RoomType.COMBAT, "F1-U1": RoomBase.RoomType.CHALLENGE,
+	"F1-U2": RoomBase.RoomType.COMBAT, "F1-U3": RoomBase.RoomType.CHALLENGE,
+	"F1-D1": RoomBase.RoomType.SAFE, "F1-D2": RoomBase.RoomType.COMBAT,
+	"F1-D3": RoomBase.RoomType.CHALLENGE, "F1-06": RoomBase.RoomType.SAFE,
+	"F1-07": RoomBase.RoomType.COMBAT, "F1-08": RoomBase.RoomType.BOSS,
+}
+
+
+func spawn_main() -> Node:
+	GameManager.reset_lives()
+	var m := MAIN_SCENE.instantiate()
+	m.name = "TestWorldMain"
+	m.set("debug_keys", false)
+	add_child(m)
+	var p: Player = m.get("player")
+	p.read_input = false
+	p.combat.read_input = false
+	return m
+
+
+func rooms_of(m: Node) -> RoomManager:
+	return m.get("room_manager")
+
+
+func player_of(m: Node) -> Player:
+	return m.get("player")
+
+
+func kill_required(room: RoomBase) -> void:
+	for enemy in room.required_enemies.duplicate():
+		enemy.take_hit(Hit.new(999.0))
+
+
+func test_floor1_graph() -> void:
+	var ids := FloorData.room_ids(1)
+	check_eq(ids.size(), FLOOR1_EXITS.size(), "room count")
+	check_eq(FloorData.start_room(1), "F1-01", "floor starts at the entrance")
+	var w := world()
+	for id: String in FLOOR1_EXITS:
+		check(FloorData.has_room(1, id), "%s registered" % id)
+		var room := (load(FloorData.room_scene_path(1, id)) as PackedScene).instantiate() as RoomBase
+		w.add_child(room)
+		check_eq(room.room_id, id, "scene room_id")
+		check_eq(room.room_type, FLOOR1_TYPES[id], "%s type" % id)
+		check_eq(Array(room.exits), FLOOR1_EXITS[id], "%s exits" % id)
+		check_eq(room.doors.size(), room.exits.size(), "%s has one door per exit" % id)
+		check(room.get_spawn_point() != room.global_position, "%s has an entrance" % id)
+		for target in room.exits:
+			check(FloorData.has_room(1, target), "%s -> %s exists" % [id, target])
+		room.queue_free()
+
+
+func test_room_transition() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var p := player_of(m)
+	check_eq(rm.current_room_id, "F1-01", "starts at entrance")
+	check(not rm.request_exit(3), "invalid exit index rejected")
+	check(rm.request_exit(0), "valid exit accepted")
+	check(not rm.request_exit(0), "no second transition while one is running")
+	while rm.transitioning:
+		await get_tree().process_frame
+	check_eq(rm.current_room_id, "F1-02", "arrived in F1-02")
+	check(p.global_position.distance_to(rm.current_room.get_spawn_point()) < 2.0, "placed at the entrance")
+	rm.load_room("F1-05")
+	rm.request_exit(1)
+	while rm.transitioning:
+		await get_tree().process_frame
+	check_eq(rm.current_room_id, "F1-D1", "F1-05 exit 2 leads to the low road")
+
+
+func test_combat_room_locking() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var p := player_of(m)
+	var room := rm.load_room("F1-02")
+	check(room.encounter_active, "encounter active on entry")
+	check(room.doors.all(func(d: Door) -> bool: return d.locked), "exits locked")
+	check(p.combat_state.in_combat, "combat state active")
+	kill_required(room)
+	check(not room.encounter_active, "encounter over")
+	check(room.doors.all(func(d: Door) -> bool: return not d.locked), "exits unlocked")
+	check(not p.combat_state.in_combat, "combat ended")
+	check(room.is_cleared(), "room marked cleared")
+	check(rm.room_states["F1-02"].get("cleared", false), "manager stored cleared state")
+
+
+func test_cleared_room_stays_cleared() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var p := player_of(m)
+	kill_required(rm.load_room("F1-02"))
+	rm.load_room("F1-03")
+	var again := rm.load_room("F1-02")
+	await frames(2)
+	check(again.is_cleared(), "still cleared")
+	check_eq(again.required_enemies.size(), 0, "no enemies respawned")
+	check(again.doors.all(func(d: Door) -> bool: return not d.locked), "exits open")
+	check(not p.combat_state.in_combat, "no combat on revisit")
+
+
+func test_death_resets_room() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var p := player_of(m)
+	var room := rm.load_room("F1-02")
+	room.required_enemies[0].take_hit(Hit.new(999.0))
+	p.potions.reset(5)
+	p.health.take_damage(500.0)
+	check_eq(GameManager.lives, 2, "exactly one life lost")
+	await frames(secs(1.7))
+	var fresh := rm.current_room
+	check_eq(rm.current_room_id, "F1-02", "restarted the same room")
+	check(fresh != room, "room was reloaded")
+	check_eq(fresh.required_enemies.size(), 2, "encounter reset: both goblins back")
+	check(fresh.doors.all(func(d: Door) -> bool: return d.locked), "exits locked again")
+	check(not p.health.is_dead, "alive")
+	check_eq(p.health.current, 100.0, "full health")
+	check_eq(p.potions.count, 5, "potions kept")
+	check(p.combat_state.in_combat, "encounter re-activated")
+	check(p.global_position.distance_to(fresh.get_spawn_point()) < 2.0, "at the room entrance")
+
+
+func test_death_keeps_floor_progress() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var p := player_of(m)
+	kill_required(rm.load_room("F1-02"))
+	rm.load_room("F1-03")
+	p.health.take_damage(500.0)
+	await frames(secs(1.7))
+	check_eq(GameManager.lives, 2, "one life lost")
+	check(rm.room_states["F1-02"].get("cleared", false), "F1-02 still cleared")
+
+
+func test_game_over_restart() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var p := player_of(m)
+	kill_required(rm.load_room("F1-02"))
+	rm.load_room("F1-05")
+	GameManager.lives = 1
+	p.potions.reset(7)
+	p.health.take_damage(500.0)
+	await frames(secs(1.7))
+	var screen: GameOverScreen = m.get("game_over")
+	check(screen.visible, "game over shown")
+	check(get_tree().paused, "game paused")
+	screen._on_restart()
+	await frames(2)
+	check(not get_tree().paused, "unpaused")
+	check(not screen.visible, "screen hidden")
+	check_eq(GameManager.lives, 3, "lives restored")
+	check_eq(p.potions.count, 3, "potions reset to 3")
+	check_eq(p.health.current, 100.0, "full health")
+	check_eq(rm.current_room_id, "F1-01", "back at floor entrance")
+	check(not rm.room_states.has("F1-02"), "room progress reset")
+
+
+func test_pit_fall() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var p := player_of(m)
+	var room := rm.load_room("F1-U3")
+	p.global_position = Vector2(11.5 * 32, 15 * 32)
+	await frames(secs(1.0))
+	check_eq(p.health.current, 80.0, "20 fall damage")
+	check(p.global_position.distance_to(room.get_spawn_point()) < 40.0, "back at the entrance")
+
+
+func test_switch_trial() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var room := rm.load_room("F1-U1")
+	check_eq(room.switches.size(), 3, "three switches")
+	check(room.chest.locked, "chest locked")
+	check(not room.chest.interact(), "locked chest does nothing")
+	check(not room.doors[0].locked, "exit is not locked in challenge rooms")
+	room.switches[0].take_hit(Hit.new(10.0))
+	room.switches[1].take_hit(Hit.new(10.0))
+	check(not room.is_trial_done(), "two of three is not enough")
+	room.switches[2].take_hit(Hit.new(10.0))
+	check(room.is_trial_done(), "trial complete")
+	check(not room.chest.locked, "chest unlocked")
+	check(room.chest.interact(), "chest opens")
+	check(room.state.get("reward_claimed", false), "reward claimed")
+	await frames(2)
+	rm.load_room("F1-U2")
+	var again := rm.load_room("F1-U1")
+	check(again.chest.is_open, "chest stays open")
+	check(again.switches.all(func(s: FloorSwitch) -> bool: return s.is_on), "switches stay on")
+	check_eq(again._gates.size(), 0, "gate stays open")
+
+
+func test_defeat_trial() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var room := rm.load_room("F1-D3")
+	check_eq(room.required_enemies.size(), 3, "three guards")
+	check(room.chest.locked, "chest locked")
+	kill_required(room)
+	check(room.is_trial_done(), "trial complete")
+	check(not room.chest.locked, "chest unlocked")
+
+
+func test_reach_trial() -> void:
+	var m := spawn_main()
+	var room := rooms_of(m).load_room("F1-04")
+	check(room.chest != null and not room.chest.locked, "chest unlocked")
+	check(room.chest.interact(), "chest opens")
+
+
+func test_fountain() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var p := player_of(m)
+	var room := rm.load_room("F1-03")
+	check(not room.fountain.interact(), "no use at full health")
+	set_health(p, 40.0)
+	check(room.fountain.interact(), "fountain used")
+	check_eq(p.health.current, 100.0, "healed to full")
+	set_health(p, 50.0)
+	check(not room.fountain.interact(), "only once")
+	rm.load_room("F1-04")
+	check(rm.load_room("F1-03").fountain.dry, "stays dry on revisit")
+	check_eq(p.potions.count, 3, "fountain does not use potions")
+
+
+func test_jump_clears_three_tiles() -> void:
+	var w := world()
+	var ledge := SolidBlock.new()
+	ledge.position = Vector2(48, -96)
+	ledge.size = Vector2(200, 96)
+	w.add_child(ledge)
+	var p := spawn_player(w, 0.0)
+	p.read_input = true
+	await frames(3)
+	Input.action_press("move_right")
+	Input.action_press("jump")
+	await frames(secs(0.8))
+	Input.action_release("jump")
+	Input.action_release("move_right")
+	await frames(secs(0.3))
+	check(p.is_on_floor() and p.global_position.y < -96.0, "landed on top of the ledge (y=%.1f)" % p.global_position.y)

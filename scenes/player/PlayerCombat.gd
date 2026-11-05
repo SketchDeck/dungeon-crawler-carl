@@ -6,7 +6,7 @@ extends Node
 signal hit_landed(hit: Hit, targets: int)
 
 ## Bodies on these layers can be struck by player attacks.
-@export_flags_2d_physics var target_mask := HitQuery.LAYER_ENEMIES
+@export_flags_2d_physics var target_mask := HitQuery.LAYER_ENEMIES | HitQuery.LAYER_HITTABLE
 
 ## Disabled by tests to drive abilities without real input.
 var read_input := true

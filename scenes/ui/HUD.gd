@@ -25,9 +25,21 @@ var _t := 0.0
 @onready var _potion_label: Label = %PotionLabel
 @onready var _potion_row: Control = %PotionRow
 @onready var _status_label: Label = %StatusLabel
+@onready var _lives: Control = %Lives
+@onready var _room_label: Label = %RoomLabel
+@onready var _banner: Control = %Banner
+@onready var _banner_title: Label = %BannerTitle
+@onready var _banner_subtitle: Label = %BannerSubtitle
+@onready var _fade: ColorRect = %Fade
+
+var _banner_tween: Tween
 
 
 func _ready() -> void:
+	_banner.modulate.a = 0.0
+	_fade.color.a = 0.0
+	GameManager.lives_changed.connect(_on_lives_changed)
+	_on_lives_changed(GameManager.lives)
 	_fill_box = _flat(FILL)
 	_ghost_fill_box = _flat(Color("#f2d0a0"))
 	_bar.add_theme_stylebox_override("background", _flat(Color(0, 0, 0, 0)))
@@ -43,6 +55,62 @@ func bind_player(player: Player) -> void:
 	_on_health_changed(player.health.current, player.health.max_health)
 	_on_potions_changed(player.potions.count, player.potions.capacity)
 	_ghost_value = _current
+
+
+func bind_rooms(manager: RoomManager) -> void:
+	manager.room_entered.connect(_on_room_entered.bind(manager))
+
+
+func _on_lives_changed(lives: int) -> void:
+	_lives.set("lives", lives)
+
+
+func _on_room_entered(room: RoomBase, manager: RoomManager) -> void:
+	_room_label.text = "%s  ·  %s" % [FloorData.floor_name(manager.floor_number), room.display_name]
+	var title := ""
+	var subtitle := ""
+	var color := Color.WHITE
+	match room.room_type:
+		RoomBase.RoomType.ENTRANCE:
+			title = FloorData.floor_name(manager.floor_number).to_upper()
+			subtitle = room.display_name
+			color = Color("#8ec5ff")
+		RoomBase.RoomType.COMBAT:
+			title = "COMBAT"
+			subtitle = "Room cleared" if room.is_cleared() else "Defeat every enemy to unlock the exits"
+			color = Color("#ffcf6b")
+		RoomBase.RoomType.SAFE:
+			title = "SAFE ROOM"
+			subtitle = "No enemies here. Catch your breath."
+			color = Color("#8fe39a")
+		RoomBase.RoomType.CHALLENGE:
+			title = "CHALLENGE"
+			subtitle = room.trial_hint
+			color = Color("#c3a6ff")
+		RoomBase.RoomType.BOSS:
+			title = "BOSS"
+			subtitle = room.display_name
+			color = Color("#ff7a7a")
+	show_banner(title, subtitle, color)
+
+
+func show_banner(title: String, subtitle: String, color := Color.WHITE) -> void:
+	_banner_title.text = title
+	_banner_title.add_theme_color_override("font_color", color)
+	_banner_subtitle.text = subtitle
+	if _banner_tween:
+		_banner_tween.kill()
+	_banner_tween = create_tween()
+	_banner_tween.tween_property(_banner, "modulate:a", 1.0, 0.25)
+	_banner_tween.tween_interval(2.0)
+	_banner_tween.tween_property(_banner, "modulate:a", 0.0, 0.6)
+
+
+## Fades the screen to black (alpha 1) or back (alpha 0).
+func fade(alpha: float, duration: float) -> Tween:
+	var tween := create_tween()
+	tween.tween_property(_fade, "color:a", alpha, duration)
+	return tween
 
 
 func _on_health_changed(current: float, maximum: float) -> void:
