@@ -6,8 +6,18 @@ config_version=5
 [application]
 
 config/name="Dungeon Crawler Carl"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/main/Main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
+
+[autoload]
+
+Controls="*res://scripts/autoload/controls.gd"
+Save="*res://scripts/autoload/save_manager.gd"
+Fx="*res://scripts/autoload/fx.gd"
+Game="*res://scripts/autoload/game_manager.gd"
+CombatState="*res://scripts/autoload/combat_state.gd"
+DungeonAI="*res://scripts/autoload/dungeon_ai.gd"
+Sfx="*res://scripts/autoload/sfx.gd"
 
 [display]
 

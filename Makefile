@@ -2,7 +2,7 @@ GODOT ?= godot
 PYTHON ?= python3
 PORT ?= 8000
 
-.PHONY: editor check web serve clean
+.PHONY: editor check test web serve clean
 
 editor:
 	$(GODOT) --editor --path .
@@ -10,6 +10,9 @@ editor:
 check:
 	$(GODOT) --headless --path . --editor --import
 	$(GODOT) --headless --path . --quit-after 2
+
+test:
+	$(GODOT) --headless --path . --scene res://tests/TestRunner.tscn
 
 web:
 	mkdir -p build/web
