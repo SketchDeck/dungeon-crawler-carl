@@ -1,8 +1,42 @@
 # Dungeon Crawler Carl
 
-A minimal Godot 4 web game. No logins, database, backend, or JavaScript packages
-are required. The starter scene draws a room and a player you can move with WASD
-or the arrow keys.
+A 2D action platformer prototype in Godot 4 (GDScript). You play Carl, with
+Princess Donut riding on his shoulder, and kick your way through dungeon rooms.
+No logins, database, backend, or JavaScript packages are required.
+
+**Status: Milestone 2 (health and healing).** The game boots into a test
+room with platforms, four Goblins and two potions. Floor/room structure is
+documented in [docs/floor-layouts.md](docs/floor-layouts.md).
+
+Health and healing rules:
+
+- You start with **3 potions** and can carry at most **10**. Each potion heals
+  **30 HP**, capped at your maximum. A potion isn't used up if you're at full
+  health, and there's a 0.5s cooldown between drinks.
+- Enemies drop a potion **20%** of the time (`potion_drop_chance`). In the
+  test room only it's raised to 50% so drops are easy to see. If you already
+  carry 10, a potion stays on the ground until you have room.
+- **Automatic healing:** 3 seconds after combat ends, health regenerates to
+  full over 10 seconds. Fighting again, taking damage or dying stops it; any
+  healing already done is kept. It never runs during a boss fight.
+- You're **in combat** while any enemy is chasing you (an enemy keeps chasing
+  until it dies or loses you for 3 seconds) or while a room or boss encounter
+  is active.
+
+## Controls
+
+| Action | Keyboard | Controller |
+|---|---|---|
+| Move | A/D or arrows | Left stick / D-pad |
+| Jump (hold for higher) | Space | South face button |
+| Dodge | Left Shift | Right shoulder |
+| Kick combo (tap ×3) | J | West face button |
+| Power kick (hold, release) | K | North face button |
+| Drink potion | H | D-pad Down |
+| Respawn Goblins (debug) | R | — |
+
+The input map already contains the later actions (switch mode, special,
+interact, pause); they do nothing yet.
 
 ## Prerequisites
 
@@ -21,9 +55,30 @@ Make expects `godot` on your PATH. Override it if needed, for example
 make editor
 ```
 
-Alternatively, import `project.godot` directly in Godot. Press **F6** to run the
-current scene or **F5** to run the project. Start building in `scenes/main.tscn`
-and `scripts/main.gd`; there are no external assets to download.
+Alternatively, import `project.godot` directly in Godot. Press **F5** to run the
+project. There are no external assets to download; all art is drawn in code.
+
+### Project layout
+
+```text
+scenes/main/        Main.tscn — game root (current room, player, HUD)
+scenes/player/      Player.tscn + PlayerController (movement), PlayerCombat,
+                    PlayerHealth, PotionInventory, HealthRegen (auto-heal),
+                    PlayerVisual (placeholder art)
+scenes/enemies/     EnemyBase.gd (health/knockback/death/drops), Goblin
+scenes/pickups/     PotionPickup
+scenes/rooms/       RoomBase.gd, TestRoom
+scenes/environment/ SolidBlock (placeholder terrain, editable in the editor)
+scenes/ui/          HUD
+scripts/            CombatStateManager.gd (in/out of combat), Fx.gd, GameCamera.gd
+scripts/abilities/  Ability base, KickCombo, ChargedKick
+scripts/combat/     Hit, HitQuery (instant hitbox queries)
+scripts/fx/         Placeholder effects; scripts/Fx.gd autoload (shake, hit stop)
+tests/              Headless test runner
+```
+
+Tuning values (speeds, jump, dodge, damage, cooldowns, enemy stats) are
+`@export` variables, so you can change them in the Inspector.
 
 ## Run in a browser
 
@@ -63,13 +118,28 @@ On Windows, use `py -3` instead of `python3`.
 
 ```sh
 make check  # Import/parse project resources, then run a short headless smoke check
+make test   # Run the headless test suite (tests/TestRunner.tscn); exit code 1 on failure
 make web    # Export the browser build (requires matching export templates)
 make clean  # Remove generated builds
 ```
 
-There is no automated gameplay test suite yet. To smoke-test a change, run
-`make check`, export with `make web`, and open the locally served game. Check
-movement in all directions and verify the player stays inside the room.
+`make test` runs the logic and physics tests in simulated time (`--fixed-fps`),
+so tests that wait out the 13 seconds of regeneration still finish in a few
+seconds. The tests cover:
+
+- **Combat:** health clamping, invulnerability, kick damage, combo timing,
+  power-kick scaling, knockback direction, Goblin attacks, dead enemies not
+  attacking, dodge i-frames, respawn.
+- **Potions:** heal amounts, potion count, the empty/full/dead/cooldown
+  checks, the 10-potion cap, drop rate, pickups, and potions left on the
+  ground when you're full.
+- **Combat state and healing:** combat starting and ending, the 3s wait,
+  10s to full, combat stopping regeneration and the new rate afterwards,
+  potions during regeneration, no healing while dead or during a boss fight,
+  and potions kept after death.
+
+Game feel still has to be checked by hand: run the game, fight the Goblins,
+drink potions, collect drops, then step away and watch health come back.
 
 Godot's `.godot/` cache, export credentials, and generated `build/` files are
 ignored by Git. The web build also creates `build/.gdignore` so Godot does not

@@ -1,0 +1,110 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/ui/HUD.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scenes/ui/PotionIcon.gd" id="2_icon"]
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="TopLeft" type="VBoxContainer" parent="."]
+offset_left = 16.0
+offset_top = 12.0
+offset_right = 336.0
+offset_bottom = 130.0
+theme_override_constants/separation = 4
+
+[node name="Name" type="Label" parent="TopLeft"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.75, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+text = "CARL + DONUT   ·   Mode: CARL (kicks)"
+
+[node name="HealthRow" type="HBoxContainer" parent="TopLeft"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Bars" type="Control" parent="TopLeft/HealthRow"]
+custom_minimum_size = Vector2(240, 18)
+layout_mode = 2
+
+[node name="GhostBar" type="ProgressBar" parent="TopLeft/HealthRow/Bars"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+value = 100.0
+show_percentage = false
+
+[node name="HealthBar" type="ProgressBar" parent="TopLeft/HealthRow/Bars"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+value = 100.0
+show_percentage = false
+
+[node name="HPLabel" type="Label" parent="TopLeft/HealthRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+text = "100 / 100"
+
+[node name="PotionRow" type="HBoxContainer" parent="TopLeft"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PotionIcon" type="Control" parent="TopLeft/PotionRow"]
+custom_minimum_size = Vector2(20, 26)
+layout_mode = 2
+script = ExtResource("2_icon")
+
+[node name="PotionLabel" type="Label" parent="TopLeft/PotionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.62, 0.62, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+text = "3 / 10"
+
+[node name="PotionHint" type="Label" parent="TopLeft/PotionRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.45)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 12
+text = "[H] drink"
+
+[node name="StatusLabel" type="Label" parent="TopLeft"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 13
+
+[node name="Controls" type="Label" parent="."]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -34.0
+offset_right = 944.0
+offset_bottom = -12.0
+grow_vertical = 0
+theme_override_colors/font_color = Color(1, 1, 1, 0.6)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 13
+text = "A/D move · Space jump (hold = higher) · Shift dodge · J kick combo · hold K + release = power kick · H potion · R respawn goblins (debug)"
