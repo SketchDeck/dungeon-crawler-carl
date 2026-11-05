@@ -115,8 +115,11 @@ C  chest      F  fountain           S  switch     i  sign     B  boss spawn
 ```
 
 Signs take their text from `signs`, in reading order. Exit door N leads to
-`exits[N-1]`. A full jump clears 3 tiles, so keep steps at 3 tiles or less;
-a test checks the jump height.
+`exits[N-1]`. A full jump clears 3 tiles, so keep steps at 3 tiles or less.
+Running jumps reach about 5 tiles across (4 at full height), so pits can be
+up to 4 tiles wide. `make test` checks every room's map: it confirms each
+exit, chest, switch and fountain can be reached from the entrance, and tests
+the jump height and pit crossing with real physics.
 
 ## Run in a browser
 

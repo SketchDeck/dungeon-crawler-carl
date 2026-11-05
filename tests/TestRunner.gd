@@ -61,6 +61,8 @@ func _run() -> void:
 	await _test("reach trial chest is open from the start", test_reach_trial)
 	await _test("fountain heals to full once", test_fountain)
 	await _test("full jump clears a 3-tile ledge (room design rule)", test_jump_clears_three_tiles)
+	await _test("every room objective is reachable from the entrance", test_rooms_reachable)
+	await _test("running jump crosses a 4-tile pit (room design rule)", test_jump_crosses_pit)
 	print("\n%d passed, %d failed" % [_passed, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
@@ -846,3 +848,144 @@ func test_jump_clears_three_tiles() -> void:
 	Input.action_release("move_right")
 	await frames(secs(0.3))
 	check(p.is_on_floor() and p.global_position.y < -96.0, "landed on top of the ledge (y=%.1f)" % p.global_position.y)
+
+
+# Reachability check over each room's text map, using the movement rules the
+# rooms are designed around: the player is 2 tiles tall, a jump rises at most
+# MAX_RISE tiles, one-way platforms can be jumped through from below, and
+# falling out of the map is not allowed. Horizontal reach comes from the
+# movement values (260 px/s run, ~0.74s airtime for a flat jump): about 5
+# tiles for low jumps, 4 when landing at full height.
+const MAX_RISE := 3
+
+
+func _max_span(rise: int) -> int:
+	return 5 if rise <= 2 else 4
+
+
+func _cell(rows: PackedStringArray, r: int, c: int) -> String:
+	if r < 0 or r >= rows.size() or c < 0 or c >= rows[r].length():
+		return "#"
+	return rows[r][c]
+
+
+func _blocks(ch: String, gates_open: bool) -> bool:
+	return ch == "#" or (ch == "G" and not gates_open)
+
+
+func _supports(ch: String, gates_open: bool) -> bool:
+	return _blocks(ch, gates_open) or ch == "="
+
+
+## Standing at (r, c): body occupies rows r and r-1, feet rest on row r+1.
+func _can_stand(rows: PackedStringArray, r: int, c: int, gates_open: bool) -> bool:
+	return not _blocks(_cell(rows, r, c), gates_open) and not _blocks(_cell(rows, r - 1, c), gates_open) \
+		and _supports(_cell(rows, r + 1, c), gates_open)
+
+
+## From a non-supported cell, fall straight down. Returns -1 if it falls out.
+func _land(rows: PackedStringArray, r: int, c: int, gates_open: bool) -> int:
+	while r < rows.size():
+		if _blocks(_cell(rows, r, c), gates_open):
+			return -1
+		if _supports(_cell(rows, r + 1, c), gates_open) and r + 1 < rows.size():
+			return r
+		r += 1
+	return -1
+
+
+func _reachable(rows: PackedStringArray, start: Vector2i, gates_open: bool) -> Dictionary:
+	var seen := {start: true}
+	var queue: Array[Vector2i] = [start]
+	while not queue.is_empty():
+		var at: Vector2i = queue.pop_front()
+		var r := at.x
+		var c := at.y
+		var next: Array[Vector2i] = []
+		# Walk (and possibly fall) one tile sideways.
+		for dc in [-1, 1]:
+			var nc: int = c + dc
+			if _blocks(_cell(rows, r, nc), gates_open) or _blocks(_cell(rows, r - 1, nc), gates_open):
+				continue
+			var lr := _land(rows, r, nc, gates_open)
+			if lr >= 0:
+				next.append(Vector2i(lr, nc))
+		# Jump: rise up to MAX_RISE rows (headroom clear above the start), then
+		# drift up to MAX_SPAN columns at that height and land.
+		for rise in range(1, MAX_RISE + 1):
+			var top := r - rise
+			if _blocks(_cell(rows, top - 1, c), gates_open):
+				break
+			var span := _max_span(rise)
+			for dc in range(-span, span + 1):
+				var nc := c + dc
+				var clear := true
+				var step := 1 if dc >= 0 else -1
+				for x in range(c, nc + step, step):
+					if _blocks(_cell(rows, top, x), gates_open) or _blocks(_cell(rows, top - 1, x), gates_open):
+						clear = false
+						break
+				if not clear:
+					continue
+				var lr := _land(rows, top, nc, gates_open)
+				if lr >= 0:
+					next.append(Vector2i(lr, nc))
+		for n in next:
+			if not seen.has(n) and _can_stand(rows, n.x, n.y, gates_open):
+				seen[n] = true
+				queue.append(n)
+	return seen
+
+
+func test_rooms_reachable() -> void:
+	for id: String in FloorData.room_ids(1):
+		var room := (load(FloorData.room_scene_path(1, id)) as PackedScene).instantiate() as RoomBase
+		var rows: PackedStringArray = []
+		for line in room.layout.strip_edges().split("\n"):
+			rows.append(line.strip_edges())
+		room.free()
+		var start := Vector2i(-1, -1)
+		for r in rows.size():
+			var c := rows[r].find("E")
+			if c >= 0:
+				start = Vector2i(r, c)
+		var before_gates := _reachable(rows, start, false)
+		var after_gates := _reachable(rows, start, true)
+		for r in rows.size():
+			for c in rows[r].length():
+				var ch := rows[r][c]
+				var target := ch == "C" or ch == "S" or ch == "F" or (ch >= "1" and ch <= "9")
+				if not target:
+					continue
+				# Chests may sit behind a trial gate; everything else must be
+				# reachable with gates closed.
+				var reach := after_gates if ch == "C" else before_gates
+				check(reach.has(Vector2i(r, c)), "%s: '%s' at row %d col %d is unreachable" % [id, ch, r, c])
+
+
+func test_jump_crosses_pit() -> void:
+	var w := Node2D.new()
+	w.name = "TestWorld"
+	add_child(w)
+	var left := SolidBlock.new()
+	left.position = Vector2(-400, 0)
+	left.size = Vector2(400, 40)
+	w.add_child(left)
+	var right := SolidBlock.new()
+	right.position = Vector2(128, 0)  # 4-tile (128px) gap
+	right.size = Vector2(400, 40)
+	w.add_child(right)
+	var p := spawn_player(w, -200.0)
+	p.read_input = true
+	await frames(3)
+	Input.action_press("move_right")
+	# Jump from the last tile before the gap.
+	while p.global_position.x < -20.0:
+		await get_tree().physics_frame
+	Input.action_press("jump")
+	await frames(secs(0.9))
+	Input.action_release("jump")
+	Input.action_release("move_right")
+	await frames(secs(0.3))
+	check(p.is_on_floor() and p.global_position.x > 128.0 and p.global_position.y < 0.0,
+		"landed across the pit (x=%.1f, y=%.1f)" % [p.global_position.x, p.global_position.y])
