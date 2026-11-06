@@ -14,7 +14,8 @@ var height := 26.0
 var hit: Hit
 
 var travelled := 0.0
-var _has_hit := false
+## Each wave hits a given player at most once.
+var _hit_players: Array[Player] = []
 var _t := 0.0
 
 
@@ -26,13 +27,15 @@ func _physics_process(delta: float) -> void:
 	if travelled >= max_range or _hits_wall():
 		queue_free()
 		return
-	var player := get_tree().get_first_node_in_group("player") as Player
-	if player and not _has_hit and not player.health.is_dead:
+	for node in get_tree().get_nodes_in_group("player"):
+		var player := node as Player
+		if player == null or player.health.is_dead or _hit_players.has(player):
+			continue
 		var feet := player.global_position.y + PLAYER_FEET
 		var close := absf(player.global_position.x - global_position.x) < PLAYER_HALF_WIDTH + 16.0
 		if close and feet > global_position.y - height and feet < global_position.y + 8.0:
 			if player.take_hit(hit):
-				_has_hit = true
+				_hit_players.append(player)
 	queue_redraw()
 
 

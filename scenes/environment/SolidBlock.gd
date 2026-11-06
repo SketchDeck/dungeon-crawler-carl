@@ -28,6 +28,10 @@ func _ready() -> void:
 func _rebuild() -> void:
 	if not is_inside_tree():
 		return
+	if one_way:
+		add_to_group("one_way_platforms")
+	elif is_in_group("one_way_platforms"):
+		remove_from_group("one_way_platforms")
 	if _shape_node == null:
 		# Not given an owner, so it is never saved into the scene file.
 		_shape_node = CollisionShape2D.new()

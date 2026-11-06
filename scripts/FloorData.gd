@@ -6,6 +6,7 @@ extends RefCounted
 const FLOORS := {
 	1: {
 		"name": "Floor 1",
+		"boss": "Goblin Brute",
 		"start": "F1-01",
 		"rooms": {
 			"F1-01": "res://scenes/rooms/floor1/F1_01_Entrance.tscn",
@@ -24,6 +25,28 @@ const FLOORS := {
 			"F1-08": "res://scenes/rooms/floor1/F1_08_Boss.tscn",
 		},
 	},
+	2: {
+		"name": "Floor 2",
+		"boss": "Mutating Slime",
+		"start": "F2-01",
+		"rooms": {
+			"F2-01": "res://scenes/rooms/floor2/F2_01_Entrance.tscn",
+			"F2-02": "res://scenes/rooms/floor2/F2_02_Challenge.tscn",
+			"F2-U1": "res://scenes/rooms/floor2/F2_U1_Combat.tscn",
+			"F2-M1": "res://scenes/rooms/floor2/F2_M1_Safe.tscn",
+			"F2-D1": "res://scenes/rooms/floor2/F2_D1_Combat.tscn",
+			"F2-U2": "res://scenes/rooms/floor2/F2_U2_Safe.tscn",
+			"F2-M2": "res://scenes/rooms/floor2/F2_M2_Combat.tscn",
+			"F2-D2": "res://scenes/rooms/floor2/F2_D2_Challenge.tscn",
+			"F2-U3": "res://scenes/rooms/floor2/F2_U3_Combat.tscn",
+			"F2-U4": "res://scenes/rooms/floor2/F2_U4_Challenge.tscn",
+			"F2-D3": "res://scenes/rooms/floor2/F2_D3_Combat.tscn",
+			"F2-D4": "res://scenes/rooms/floor2/F2_D4_Challenge.tscn",
+			"F2-06": "res://scenes/rooms/floor2/F2_06_Safe.tscn",
+			"F2-07": "res://scenes/rooms/floor2/F2_07_Combat.tscn",
+			"F2-08": "res://scenes/rooms/floor2/F2_08_Boss.tscn",
+		},
+	},
 }
 
 
@@ -33,6 +56,10 @@ static func has_floor(floor_number: int) -> bool:
 
 static func floor_name(floor_number: int) -> String:
 	return FLOORS[floor_number]["name"]
+
+
+static func boss_name(floor_number: int) -> String:
+	return FLOORS[floor_number].get("boss", "boss")
 
 
 static func start_room(floor_number: int) -> String:

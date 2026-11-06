@@ -10,6 +10,8 @@ const SIZE := Vector2(44, 80)
 var exit_index := 0
 ## Destination room id (for display only; the room manager validates exits).
 var target_label := ""
+## Text on the door (e.g. which path it leads to).
+var label := "EXIT"
 var locked := false
 
 var _area: Area2D
@@ -75,4 +77,6 @@ func _draw() -> void:
 		var glow := 0.25 + 0.15 * sin(_t * 3.0)
 		draw_rect(r.grow(-4), Color(0.45, 1.0, 0.6, glow * 0.35))
 		var font := ThemeDB.fallback_font
-		draw_string(font, Vector2(-SIZE.x * 0.5, -SIZE.y * 0.5 + 6), "EXIT", HORIZONTAL_ALIGNMENT_CENTER, SIZE.x, 12, Color(0.7, 1.0, 0.75, 0.9))
+		var size := 12 if label.length() <= 4 else 10
+		draw_string(font, Vector2(-SIZE.x * 0.5 - 6, -SIZE.y * 0.5 + 6), label, HORIZONTAL_ALIGNMENT_CENTER, SIZE.x + 12, size,
+			Color(0.7, 1.0, 0.75, 0.9))

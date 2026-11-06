@@ -7,7 +7,7 @@ extends Node2D
 ##   G  gate (solid until the challenge trial is complete)
 ##   E  entrance / player spawn
 ##   1-9 exit door N (leads to exits[N-1])
-##   g  Goblin                 C  reward chest       F  healing fountain
+##   g  Goblin   s  Slime      C  reward chest       F  healing fountain
 ##   S  trial switch           i  sign (texts from `signs`, in reading order)
 ##   B  boss spawn (boss rooms)    X  stairs to the next floor (open once the boss is beaten)
 ##   ^  spikes (put them in a 1-tile-deep pit)
@@ -24,7 +24,7 @@ signal encounter_started
 signal encounter_cleared
 signal trial_completed
 signal reward_claimed
-signal boss_started(boss: GoblinBoss)
+signal boss_started(boss: BossBase)
 signal boss_defeated
 signal floor_exit_requested
 
@@ -33,7 +33,7 @@ enum Trial { NONE, REACH, SWITCHES, DEFEAT }
 
 const TILE := 32
 const GOBLIN_SCENE := preload("res://scenes/enemies/Goblin.tscn")
-const BOSS_SCENE := preload("res://scenes/bosses/GoblinBoss.tscn")
+const SLIME_SCENE := preload("res://scenes/enemies/Slime.tscn")
 
 @export var room_id := ""
 @export var display_name := ""
@@ -43,10 +43,14 @@ const BOSS_SCENE := preload("res://scenes/bosses/GoblinBoss.tscn")
 @export var trial_hint := ""
 ## Destination room ids for exit doors 1, 2, ...
 @export var exits: PackedStringArray
+## Optional text for each exit door (defaults to "EXIT").
+@export var exit_labels: PackedStringArray
 @export var signs: PackedStringArray
 @export var lock_exits_during_encounter := true
 ## Boss rooms: the fight starts when the player gets this close to the boss.
 @export var boss_wake_distance := 420.0
+## Boss rooms: which boss the B marker spawns.
+@export var boss_scene: PackedScene = preload("res://scenes/bosses/GoblinBoss.tscn")
 ## Camera limits; computed from the layout when one is given.
 @export var bounds := Rect2(0, 0, 1280, 640)
 @export var backdrop_color := Color("#1a2230")
@@ -63,7 +67,7 @@ var fountain: Fountain
 var required_enemies: Array[EnemyBase] = []
 var encounter_active := false
 var boss_spawn := Vector2.ZERO
-var boss: GoblinBoss
+var boss: BossBase
 var floor_exit: FloorExit
 
 var _spawn := Vector2.ZERO
@@ -114,7 +118,7 @@ func _physics_process(_delta: float) -> void:
 	# Boss rooms wake the boss once the player walks in far enough.
 	if room_type != RoomType.BOSS or encounter_active or is_cleared():
 		return
-	if not is_instance_valid(boss) or boss.state != GoblinBoss.State.DORMANT:
+	if not is_instance_valid(boss) or not boss.is_dormant():
 		return
 	if is_instance_valid(player) and not player.health.is_dead \
 			and absf(player.global_position.x - boss.global_position.x) <= boss_wake_distance:
@@ -274,6 +278,9 @@ func _build_from_layout() -> void:
 				"g":
 					if spawn_enemies:
 						_spawn_enemy(GOBLIN_SCENE, foot - Vector2(0, 20))
+				"s":
+					if spawn_enemies:
+						_spawn_enemy(SLIME_SCENE, foot - Vector2(0, 12))
 				"C":
 					chest = Chest.new()
 					chest.position = foot
@@ -303,7 +310,7 @@ func _build_from_layout() -> void:
 				"B":
 					boss_spawn = foot
 					if room_type == RoomType.BOSS and not is_cleared():
-						boss = BOSS_SCENE.instantiate() as GoblinBoss
+						boss = boss_scene.instantiate() as BossBase
 						boss.position = foot - Vector2(0, boss.body_size.y * 0.5)
 						boss.died.connect(_on_boss_died)
 						_enemies.add_child(boss)
@@ -328,6 +335,8 @@ func _build_from_layout() -> void:
 						door.position = foot
 						door.exit_index = ch.to_int() - 1
 						door.target_label = exits[door.exit_index] if door.exit_index < exits.size() else ""
+						if door.exit_index < exit_labels.size():
+							door.label = exit_labels[door.exit_index]
 						door.entered.connect(_on_door_entered)
 						doors.append(door)
 						_objects.add_child(door)

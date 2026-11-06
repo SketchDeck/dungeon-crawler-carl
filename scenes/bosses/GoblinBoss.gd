@@ -1,5 +1,5 @@
 class_name GoblinBoss
-extends EnemyBase
+extends BossBase
 ## Floor 1 boss: the Goblin Brute.
 ##
 ## Waits (DORMANT) until the room starts the fight. Then it walks toward the
@@ -16,9 +16,6 @@ extends EnemyBase
 ## The boss can't be knocked back or interrupted, and is immune while it
 ## roars (intro and phase change).
 
-signal fight_started
-signal phase_changed(phase: int)
-
 enum State { DORMANT, INTRO, APPROACH, TELEGRAPH, CHARGING, ACTIVE, RECOVER, STUNNED, TRANSITION }
 enum Attack { CHARGE, SLAM, SWING }
 
@@ -28,8 +25,6 @@ const ARMOR := Color("#4d4038")
 const CLUB := Color("#7a4f28")
 const WARN := Color("#ff3a2a")
 
-@export var boss_name := "GOBLIN BRUTE"
-@export var guaranteed_potions := 2
 @export_group("Movement")
 @export var approach_speed := 95.0
 @export_group("Timing")
@@ -43,7 +38,6 @@ const WARN := Color("#ff3a2a")
 @export var stun_time := 1.6
 @export var transition_time := 1.8
 @export_group("Phase 2")
-@export_range(0.0, 1.0) var phase2_health_ratio := 0.5
 @export var phase2_telegraph_multiplier := 0.75
 @export var phase2_recovery_multiplier := 0.55
 @export var phase2_speed_multiplier := 1.25
@@ -70,7 +64,6 @@ const WARN := Color("#ff3a2a")
 @export var swing_knockback := Vector2(480, -280)
 
 var state := State.DORMANT
-var phase := 1
 var attack := Attack.SWING
 ## Tests set this to choose the next attack instead of rolling for it.
 var forced_attack := -1
@@ -80,13 +73,21 @@ var _charge_from := 0.0
 var _history: Array[int] = []
 var _chained := false
 var _swing_fx := 0.0
-var _immune_text_t := 0.0
 var _anim := 0.0
+
+
+func _init() -> void:
+	boss_name = "GOBLIN BRUTE"
+	boss_hint = "Learn his tells: crouch = charge, fists up = slam (jump!), club back = swing"
 
 
 func _ready() -> void:
 	super._ready()
 	facing = -1
+
+
+func is_dormant() -> bool:
+	return state == State.DORMANT
 
 
 func start_fight() -> void:
@@ -102,23 +103,6 @@ func start_fight() -> void:
 
 func is_immune() -> bool:
 	return state == State.DORMANT or state == State.INTRO or state == State.TRANSITION
-
-
-func take_hit(hit: Hit) -> void:
-	if is_dead:
-		return
-	if is_immune():
-		if _immune_text_t <= 0.0:
-			Fx.text(global_position + Vector2(0, -60), "IMMUNE", Color(0.8, 0.8, 0.8), 14)
-			_immune_text_t = 0.4
-		return
-	super.take_hit(hit)
-	if not is_dead and phase == 1 and health <= max_health * phase2_health_ratio:
-		_enter_phase_two()
-
-
-func is_armored() -> bool:
-	return true
 
 
 func is_telegraphing() -> bool:
@@ -152,7 +136,6 @@ func _speed_mult() -> float:
 func _ai(delta: float) -> void:
 	_anim += delta
 	_swing_fx = maxf(_swing_fx - delta, 0.0)
-	_immune_text_t = maxf(_immune_text_t - delta, 0.0)
 	var player := get_player()
 	var player_ok := player != null and not player.health.is_dead
 	if not player_ok and state != State.CHARGING:
@@ -318,7 +301,6 @@ func _swing() -> void:
 
 
 func _enter_phase_two() -> void:
-	phase = 2
 	_chained = false
 	state = State.TRANSITION
 	_t = transition_time
@@ -326,7 +308,6 @@ func _enter_phase_two() -> void:
 	Fx.shake(0.8)
 	Fx.burst(global_position, WARN, 70.0, 0.5)
 	Fx.text(global_position + Vector2(0, -90), "ENRAGED!", WARN, 26)
-	phase_changed.emit(phase)
 
 
 func _on_died() -> void:
@@ -334,8 +315,7 @@ func _on_died() -> void:
 	Fx.shake(0.9)
 	Fx.hit_stop(0.2)
 	Fx.burst(global_position, Color("#ffd34d"), 90.0, 0.7)
-	for i in guaranteed_potions:
-		drop_potion()
+	drop_rewards()
 
 
 func body_color() -> Color:

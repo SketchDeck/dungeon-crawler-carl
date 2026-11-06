@@ -4,11 +4,15 @@ A 2D action platformer prototype in Godot 4 (GDScript). You play Carl, with
 Princess Donut riding on his shoulder, and kick your way through dungeon rooms.
 No logins, database, backend, or JavaScript packages are required.
 
-**Status: Milestone 7 (Dungeon AI).** Floor 1 is playable from the entrance
-to the Goblin Brute, with special abilities, treasure upgrades, hazards and
-Dungeon AI achievements. The game starts at the Floor 1 entrance. Floor 1 has 14 rooms connected as in
+**Status: Milestone 8, part 1 of 3 (Floor 2).** Both floors are playable end
+to end: Floor 1 (14 rooms, the Goblin Brute) and Floor 2 (15 rooms, Slimes,
+the Mutating Slime), with special abilities, treasure upgrades, hazards and
+Dungeon AI achievements. Still to come in Milestone 8: main, pause and
+settings menus, Continue from a save, audio, and final polish. The game
+starts at the Floor 1 entrance. Rooms are connected as in
 [docs/floor-layouts.md](docs/floor-layouts.md). The first four rooms are a
-tutorial, with signs that explain the controls.
+tutorial, with signs that explain the controls. Doors that lead to different
+paths are labelled (HIGH/LOW, UPPER/MIDDLE/LOWER).
 
 Combat modes:
 
@@ -38,7 +42,7 @@ Special abilities (L, depends on the mode):
   **Unlocked by beating Floor 1.**
 - **Area Magic Burst (Donut):** press L. A purple ring shows the radius while
   Donut casts, then a shockwave deals 22 damage all around you and pushes
-  enemies away. 6s cooldown. **Unlocked by beating Floor 2** (Milestone 8).
+  enemies away. 6s cooldown. **Unlocked by beating Floor 2.**
 - Locked specials show LOCKED on the HUD. For testing, press **U** to unlock
   both (debug key).
 - Unlocks are permanent and saved in `user://save.json`, together with which
@@ -132,10 +136,35 @@ The Goblin Brute (Floor 1 boss):
 - He has 360 HP and can't be knocked back. He's immune while roaring. He
   drops 2 potions when he dies.
 - Dying in the fight costs a life and resets him to full health.
-- After he's beaten, take the stairs for the **Floor Complete** screen.
-  Floor 2 comes in Milestone 8, so for now you can replay Floor 1 (3 lives,
-  3 potions, fresh rooms). Beating him marks Floor 1 as completed, unlocks
-  Floor 2 and the Explosive Kick, and saves that progress.
+- After he's beaten, take the stairs for the **Floor Complete** screen and
+  **Continue to Floor 2**: full health, lives back to 3, unused potions come
+  with you, Floor 1's upgrades and boosts end. Beating him marks Floor 1 as
+  completed, unlocks Floor 2 and the Explosive Kick, and saves that progress.
+  (You can also replay Floor 1 from the start.)
+
+Floor 2 enemies:
+
+- **Slimes** sit still, squash down and flash (with a "!") and then hop at
+  you. They only hurt while they're in the air (10 damage), so you can stand
+  next to a resting slime safely. They won't hop off ledges or into spike
+  pits on their own, but you can kick them in.
+
+The Mutating Slime (Floor 2 boss):
+
+- Same rules as the Brute: wakes when you walk in, boss bar, no auto-heal,
+  immune while transforming, 2 guaranteed potions, resets if you die.
+- **Glob volley:** it swells while dotted arcs show where each glob will
+  land (red marks on the floor), then lobs 5 globs (12 damage each). The arcs
+  are fixed, so stand in a gap between marks.
+- **Jump slam:** it crouches while a red marker shows where it will land
+  (where you were standing), then leaps there (20 damage if it lands on you)
+  and leaves an acid pool (8 damage while you stand in it). Move away.
+- **Phase 2** (half health): it turns purple, warnings get 25% shorter and
+  recovery shorter, it lobs 7 globs that each leave a small acid pool,
+  landing pools get bigger and last longer, and it splits off pairs of
+  **mini slimes**. The minis and all acid vanish when it dies.
+- It has 420 HP. Beating it completes Floor 2, permanently unlocks the Magic
+  Burst, and ends the run (Floor Complete lets you replay Floor 2).
 
 Health and healing rules:
 
@@ -198,10 +227,11 @@ scenes/main/        Main.tscn — game root (player, HUD, room manager, lives fl
 scenes/player/      Player.tscn + PlayerController (movement), PlayerCombat,
                     PlayerHealth, PotionInventory, HealthRegen (auto-heal),
                     PlayerUpgrades (temporary upgrades), PlayerVisual (placeholder art)
-scenes/enemies/     EnemyBase.gd (health/knockback/death/drops), Goblin
-scenes/bosses/      GoblinBoss (Goblin Brute), Shockwave
+scenes/enemies/     EnemyBase.gd (health/knockback/death/drops), Goblin, Slime, MiniSlime
+scenes/bosses/      BossBase.gd (shared boss rules), GoblinBoss (Goblin Brute), Shockwave,
+                    SlimeBoss (Mutating Slime), SlimeGlob, AcidPool
 scenes/pickups/     PotionPickup
-scenes/rooms/       RoomBase.gd (builds a room from its text map); floor1/ room scenes
+scenes/rooms/       RoomBase.gd (builds a room from its text map); floor1/, floor2/ room scenes
 scenes/environment/ SolidBlock, Door, FloorExit (stairs), Chest, Fountain, FloorSwitch, RoomSign,
                     SpikeTrap, ExplosiveBarrel, Breakable (crates, cracked walls)
 scenes/ui/          HUD (incl. AbilityBar cooldowns, boss bar, AchievementPanel), GameOver, FloorComplete,
@@ -231,7 +261,7 @@ view. Legend:
 
 ```text
 #  solid      =  one-way platform   G  gate (opens when the trial is done)
-E  entrance   1-9  exit door N      g  Goblin
+E  entrance   1-9  exit door N      g  Goblin     s  Slime
 C  chest      F  fountain           S  switch     i  sign     B  boss spawn
 X  stairs to the next floor (open once the boss is beaten)
 ^  spikes (replace the top floor row to make a 1-tile-deep spike pit)
@@ -332,6 +362,15 @@ seconds. The tests cover:
   chain and hurt both sides; crates and walls need strong hits; enemy
   collisions damage once; weak hits cause no collision. Tests use their own
   save file, never `user://save.json`.
+- **Floor 2:** rooms and exits match the layout doc and every room is
+  reachable through doors; every room's map passes the reachability check;
+  slimes telegraph and hop at you, only hurt while airborne, avoid spike
+  pits and can't hurt once dead; the Mutating Slime's globs land where the
+  telegraph shows, standing in a gap is safe, the jump lands on the marker
+  and leaves acid, it ignores one-way platforms, phase 2 adds globs, acid and
+  minis, and death clears minis and acid and drops potions; Floor 1 →
+  Continue → Floor 2 keeps potions and resets lives, health and upgrades;
+  beating Floor 2 unlocks the Magic Burst.
 - **Dungeon AI:** real collisions and deaths reach the AI; each achievement's
   announcement (title, description, reward) and reward; no repeats within an
   encounter; boosts last exactly this room and the next three; normal kills

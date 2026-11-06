@@ -22,7 +22,7 @@ func show_screen(floor_number: int, lives: int, potions: int, unlocks: Array[Str
 	var has_next := FloorData.has_floor(floor_number + 1)
 	_title.text = "%s COMPLETE" % FloorData.floor_name(floor_number).to_upper()
 	var lines := [
-		"The Goblin Brute is down. The crowd goes wild.",
+		"The %s is down. The crowd goes wild." % FloorData.boss_name(floor_number),
 		"Lives left: %d   ·   Potions: %d" % [lives, potions],
 	]
 	for id in unlocks:
@@ -31,7 +31,7 @@ func show_screen(floor_number: int, lives: int, potions: int, unlocks: Array[Str
 	if has_next:
 		lines.append("Continuing restores your health and lives. Unused potions come with you.")
 	else:
-		lines.append("Floor 2 isn't built yet (Milestone 8). You can replay this floor from the start.")
+		lines.append("You've cleared every floor in this build. Thanks for playing! You can replay this floor from the start.")
 	_body.text = "\n".join(lines)
 	_continue.visible = has_next
 	_continue.text = "Continue to %s" % FloorData.floor_name(floor_number + 1) if has_next else ""

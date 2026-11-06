@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/enemies/Slime.gd" id="1_slime"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(32, 24)
+
+[node name="Slime" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 1
+floor_snap_length = 4.0
+script = ExtResource("1_slime")
+display_name = "Slime"
+max_health = 35.0
+body_size = Vector2(32, 24)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")

@@ -20,6 +20,7 @@
 size = Vector2(24, 56)
 
 [node name="Player" type="CharacterBody2D" groups=["player"]]
+z_index = 1
 collision_layer = 2
 collision_mask = 1
 floor_snap_length = 6.0

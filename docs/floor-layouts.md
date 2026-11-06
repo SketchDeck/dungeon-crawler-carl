@@ -58,6 +58,12 @@ F1-01 Entrance → F1-02 Combat → F1-03 Safe → F1-04 Challenge → F1-05 Com
 | F2-07 | Combat    | F2-08                 |
 | F2-08 | Boss      | — (floor end)         |
 
+Floor 2 (as implemented): F2-02 is a switches trial with three labelled doors
+stacked on the right (UPPER on the top ledge, MIDDLE on the middle ledge,
+LOWER on the ground). F2-D2 is a defeat trial with two doors (MIDDLE on a
+ledge, LOWER on the ground). F2-U4 is a switches trial over a spike pit, F2-D4
+a climb over spike pits. Room interiors are placeholder geometry like Floor 1.
+
 ## Decisions
 
 - Doors only lead forward, following the arrows; entrances are sealed behind

@@ -45,7 +45,7 @@ var _mode_pulse := 0.0
 @onready var _boss_health: ProgressBar = %BossHealth
 @onready var _boss_ghost: ProgressBar = %BossGhost
 
-var _boss: GoblinBoss
+var _boss: BossBase
 var _boss_fill: StyleBoxFlat
 var _boss_ghost_value := 0.0
 var _boss_ghost_wait := 0.0
@@ -181,7 +181,7 @@ func fade(alpha: float, duration: float) -> Tween:
 
 # --- Boss bar -------------------------------------------------------------------
 
-func show_boss_bar(boss: GoblinBoss) -> void:
+func show_boss_bar(boss: BossBase) -> void:
 	_boss = boss
 	_boss_name.text = boss.boss_name
 	_boss_health.max_value = boss.max_health
@@ -193,7 +193,7 @@ func show_boss_bar(boss: GoblinBoss) -> void:
 	_boss_bar.modulate.a = 1.0
 	boss.phase_changed.connect(_on_boss_phase)
 	boss.died.connect(_on_boss_died)
-	show_banner(boss.boss_name, "Learn his tells: crouch = charge, fists up = slam (jump!), club back = swing", Color("#ff7a7a"))
+	show_banner(boss.boss_name, boss.boss_hint, Color("#ff7a7a"))
 
 
 func hide_boss_bar() -> void:
@@ -207,7 +207,9 @@ func is_boss_bar_visible() -> bool:
 
 func _on_boss_phase(_phase: int) -> void:
 	_boss_fill.bg_color = Color("#ff5a1f")
-	show_banner("PHASE 2", "The Brute is enraged: faster attacks, longer shockwaves", Color("#ff5a1f"))
+	var hint := "The Brute is enraged: faster attacks, longer shockwaves" if _boss is GoblinBoss \
+		else "It's mutating: more globs, acid everywhere, and it splits off little slimes"
+	show_banner("PHASE 2", hint, Color("#ff5a1f"))
 
 
 func _on_boss_died(_enemy: EnemyBase) -> void:

@@ -3,6 +3,8 @@ extends Node
 ## Exits with code 1 if any check fails.
 
 const PLAYER_SCENE := preload("res://scenes/player/Player.tscn")
+const SLIME_SCENE := preload("res://scenes/enemies/Slime.tscn")
+const SLIME_BOSS_SCENE := preload("res://scenes/bosses/SlimeBoss.tscn")
 const GOBLIN_SCENE := preload("res://scenes/enemies/Goblin.tscn")
 const BOSS_SCENE := preload("res://scenes/bosses/GoblinBoss.tscn")
 
@@ -127,6 +129,21 @@ func _run() -> void:
 	await _test("untouchable room clear heals; getting hit spoils it", test_ai_untouchable)
 	await _test("announcements queue and never pause the game", test_ai_announcements)
 	await _test("boosts survive death; floor restart clears them", test_ai_boost_reset)
+	# Milestone 8 part 1: Floor 2, slimes, Mutating Slime.
+	await _test("floor 2 rooms match the layout document", test_floor2_graph)
+	await _test("slime squashes (telegraph) then hops at the player", test_slime_hop)
+	await _test("slime only hurts while airborne", test_slime_contact)
+	await _test("slime won't hop into a spike pit", test_slime_avoids_pit)
+	await _test("dead slime can't hurt", test_slime_dead)
+	await _test("volley globs land where the telegraph shows", test_slime_boss_volley)
+	await _test("standing in a gap avoids the volley", test_slime_boss_volley_gap)
+	await _test("jump slam lands on the marker and leaves acid", test_slime_boss_jump)
+	await _test("phase 2: more globs, acid globs, minis", test_slime_boss_phase_two)
+	await _test("slime boss death clears minis and acid, drops potions", test_slime_boss_death)
+	await _test("slime boss sinks through one-way platforms", test_slime_boss_platforms)
+	await _test("Floor 1 Complete continues to Floor 2", test_continue_to_floor2)
+	await _test("beating Floor 2 unlocks Magic Burst and ends the run", test_floor2_complete)
+	GameManager.floor_number = 1
 	SaveManager.delete_save()
 	print("\n%d passed, %d failed" % [_passed, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
@@ -140,9 +157,10 @@ func _test(name: String, fn: Callable) -> void:
 	await fn.call()
 	print("%s  %s" % ["PASS" if _failed == before else "FAIL", name])
 	get_tree().paused = false
+	# Free everything a test created (Godot renames duplicate "TestWorld"
+	# nodes, so don't rely on names).
 	for child in get_children():
-		if child.name.begins_with("TestWorld"):
-			child.queue_free()
+		child.queue_free()
 	await get_tree().process_frame
 
 
@@ -666,6 +684,21 @@ const FLOOR1_EXITS := {
 	"F1-D1": ["F1-D2"], "F1-D2": ["F1-D3"], "F1-D3": ["F1-06"],
 	"F1-06": ["F1-07"], "F1-07": ["F1-08"], "F1-08": [],
 }
+const FLOOR2_EXITS := {
+	"F2-01": ["F2-02"], "F2-02": ["F2-U1", "F2-M1", "F2-D1"],
+	"F2-U1": ["F2-U2"], "F2-M1": ["F2-M2"], "F2-D1": ["F2-D2"],
+	"F2-U2": ["F2-U3"], "F2-M2": ["F2-U2"], "F2-D2": ["F2-M2", "F2-D3"],
+	"F2-U3": ["F2-U4"], "F2-U4": ["F2-06"], "F2-D3": ["F2-D4"], "F2-D4": ["F2-06"],
+	"F2-06": ["F2-07"], "F2-07": ["F2-08"], "F2-08": [],
+}
+const FLOOR2_TYPES := {
+	"F2-01": RoomBase.RoomType.ENTRANCE, "F2-02": RoomBase.RoomType.CHALLENGE,
+	"F2-U1": RoomBase.RoomType.COMBAT, "F2-M1": RoomBase.RoomType.SAFE, "F2-D1": RoomBase.RoomType.COMBAT,
+	"F2-U2": RoomBase.RoomType.SAFE, "F2-M2": RoomBase.RoomType.COMBAT, "F2-D2": RoomBase.RoomType.CHALLENGE,
+	"F2-U3": RoomBase.RoomType.COMBAT, "F2-U4": RoomBase.RoomType.CHALLENGE, "F2-D3": RoomBase.RoomType.COMBAT,
+	"F2-D4": RoomBase.RoomType.CHALLENGE, "F2-06": RoomBase.RoomType.SAFE, "F2-07": RoomBase.RoomType.COMBAT,
+	"F2-08": RoomBase.RoomType.BOSS,
+}
 const FLOOR1_TYPES := {
 	"F1-01": RoomBase.RoomType.ENTRANCE, "F1-02": RoomBase.RoomType.COMBAT,
 	"F1-03": RoomBase.RoomType.SAFE, "F1-04": RoomBase.RoomType.CHALLENGE,
@@ -679,6 +712,7 @@ const FLOOR1_TYPES := {
 
 func spawn_main() -> Node:
 	GameManager.reset_lives()
+	GameManager.floor_number = 1
 	var m := MAIN_SCENE.instantiate()
 	m.name = "TestWorldMain"
 	m.set("debug_keys", false)
@@ -703,22 +737,35 @@ func kill_required(room: RoomBase) -> void:
 
 
 func test_floor1_graph() -> void:
-	var ids := FloorData.room_ids(1)
-	check_eq(ids.size(), FLOOR1_EXITS.size(), "room count")
-	check_eq(FloorData.start_room(1), "F1-01", "floor starts at the entrance")
+	await _check_floor_graph(1, "F1-01", FLOOR1_EXITS, FLOOR1_TYPES)
+
+
+func _check_floor_graph(floor_number: int, start: String, exits: Dictionary, types: Dictionary) -> void:
+	var ids := FloorData.room_ids(floor_number)
+	check_eq(ids.size(), exits.size(), "room count")
+	check_eq(FloorData.start_room(floor_number), start, "floor starts at the entrance")
 	var w := world()
-	for id: String in FLOOR1_EXITS:
-		check(FloorData.has_room(1, id), "%s registered" % id)
-		var room := (load(FloorData.room_scene_path(1, id)) as PackedScene).instantiate() as RoomBase
+	for id: String in exits:
+		check(FloorData.has_room(floor_number, id), "%s registered" % id)
+		var room := (load(FloorData.room_scene_path(floor_number, id)) as PackedScene).instantiate() as RoomBase
 		w.add_child(room)
 		check_eq(room.room_id, id, "scene room_id")
-		check_eq(room.room_type, FLOOR1_TYPES[id], "%s type" % id)
-		check_eq(Array(room.exits), FLOOR1_EXITS[id], "%s exits" % id)
+		check_eq(room.room_type, types[id], "%s type" % id)
+		check_eq(Array(room.exits), exits[id], "%s exits" % id)
 		check_eq(room.doors.size(), room.exits.size(), "%s has one door per exit" % id)
 		check(room.get_spawn_point() != room.global_position, "%s has an entrance" % id)
 		for target in room.exits:
-			check(FloorData.has_room(1, target), "%s -> %s exists" % [id, target])
+			check(FloorData.has_room(floor_number, target), "%s -> %s exists" % [id, target])
 		room.queue_free()
+	# Every room is reachable from the entrance by following exits.
+	var seen := {start: true}
+	var queue: Array[String] = [start]
+	while not queue.is_empty():
+		for target: String in exits[queue.pop_front()]:
+			if not seen.has(target):
+				seen[target] = true
+				queue.append(target)
+	check_eq(seen.size(), exits.size(), "every room reachable through doors")
 
 
 func test_room_transition() -> void:
@@ -1003,8 +1050,13 @@ func _reachable(rows: PackedStringArray, start: Vector2i, gates_open: bool) -> D
 
 
 func test_rooms_reachable() -> void:
-	for id: String in FloorData.room_ids(1):
-		var room := (load(FloorData.room_scene_path(1, id)) as PackedScene).instantiate() as RoomBase
+	for floor_number in [1, 2]:
+		_check_floor_reachable(floor_number)
+
+
+func _check_floor_reachable(floor_number: int) -> void:
+	for id: String in FloorData.room_ids(floor_number):
+		var room := (load(FloorData.room_scene_path(floor_number, id)) as PackedScene).instantiate() as RoomBase
 		var rows: PackedStringArray = []
 		for line in room.layout.strip_edges().split("\n"):
 			rows.append(line.strip_edges())
@@ -1024,7 +1076,7 @@ func test_rooms_reachable() -> void:
 				if ch == "=" and _can_stand(rows, r - 1, c, true):
 					check(after_gates.has(Vector2i(r - 1, c)), "%s: platform at row %d col %d is out of reach" % [id, r, c])
 					continue
-				var target := ch == "C" or ch == "S" or ch == "F" or ch == "g" or ch == "B" or ch == "X" or (ch >= "1" and ch <= "9")
+				var target := ch == "C" or ch == "S" or ch == "F" or ch == "g" or ch == "s" or ch == "B" or ch == "X" or (ch >= "1" and ch <= "9")
 				if not target:
 					continue
 				# Chests may sit behind a trial gate; everything else must be
@@ -1644,7 +1696,7 @@ func test_floor_complete() -> void:
 	await frames(3)
 	check(screen.visible, "Floor Complete screen shown")
 	check(get_tree().paused, "game paused")
-	check(not (screen.get_node("%ContinueButton") as Button).visible, "no Continue until Floor 2 exists")
+	check((screen.get_node("%ContinueButton") as Button).visible, "Continue to Floor 2 offered")
 	(screen.get_node("%ReplayButton") as Button).pressed.emit()
 	await frames(2)
 	check(not screen.visible, "screen closed")
@@ -2135,3 +2187,284 @@ func test_ai_boost_reset() -> void:
 	m.call("restart_floor")
 	check(p.upgrades.boosts.is_empty(), "floor restart clears boosts")
 	check_eq(p.combat.knockback_multiplier, 1.0, "knockback back to normal")
+
+
+# --- Milestone 8 part 1: Floor 2 ------------------------------------------------
+
+func test_floor2_graph() -> void:
+	await _check_floor_graph(2, "F2-01", FLOOR2_EXITS, FLOOR2_TYPES)
+
+
+func spawn_slime(w: Node2D, x: float, ai := true) -> Slime:
+	var s := SLIME_SCENE.instantiate() as Slime
+	s.position = Vector2(x, -12)
+	s.ai_enabled = ai
+	s.rng.seed = 3
+	w.add_child(s)
+	return s
+
+
+func test_slime_hop() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var s := spawn_slime(w, 200.0)
+	check(await until(func() -> bool: return s.is_telegraphing(), secs(4.0)), "squash telegraph")
+	check(s.is_engaged, "noticed the player")
+	check_eq(s.facing, -1, "facing the player")
+	await until(func() -> bool: return s.state == Slime.State.HOP)
+	check(s.velocity.x < 0.0 and s.velocity.y < 0.0, "hops toward the player")
+	await frames(secs(2.0))
+	check(s.global_position.x < 150.0, "closed in (x=%.0f)" % s.global_position.x)
+	check(p.health.current <= 100.0, "still alive")
+
+
+func test_slime_contact() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var s := spawn_slime(w, 0.0)
+	s.hop_interval = 99.0
+	s.set_engaged(true)
+	s._t = 99.0
+	await frames(30)
+	check_eq(p.health.current, 100.0, "resting slime is harmless to touch")
+	s._t = 0.0
+	await until(func() -> bool: return s.state == Slime.State.HOP)
+	await frames(3)
+	check_eq(p.health.current, 90.0, "hop into the player deals 10")
+
+
+func test_slime_avoids_pit() -> void:
+	var w := Node2D.new()
+	w.name = "TestWorld"
+	add_child(w)
+	var left := SolidBlock.new()
+	left.position = Vector2(-400, 0)
+	left.size = Vector2(560, 40)
+	w.add_child(left)
+	var pit := SolidBlock.new()
+	pit.position = Vector2(160, 32)
+	pit.size = Vector2(96, 40)
+	w.add_child(pit)
+	var spikes := SpikeTrap.new()
+	spikes.position = Vector2(160, 0)
+	spikes.size = Vector2(96, 32)
+	w.add_child(spikes)
+	var right := SolidBlock.new()
+	right.position = Vector2(256, 0)
+	right.size = Vector2(400, 40)
+	w.add_child(right)
+	spawn_player(w, 330.0)
+	var s := spawn_slime(w, 120.0)
+	await frames(secs(5.0))
+	check(not s.is_dead and s.global_position.x < 160.0, "stayed on its side of the pit (x=%.0f)" % s.global_position.x)
+
+
+func test_slime_dead() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var s := spawn_slime(w, 60.0)
+	await until(func() -> bool: return s.state == Slime.State.HOP)
+	s.take_hit(Hit.new(999.0))
+	await frames(40)
+	check_eq(p.health.current, 100.0, "no damage after death")
+
+
+func spawn_slime_boss(w: Node2D, x: float, attack := -1) -> SlimeBoss:
+	var b := SLIME_BOSS_SCENE.instantiate() as SlimeBoss
+	b.position = Vector2(x, -32)
+	b.forced_attack = attack
+	b.rng.seed = 5
+	w.add_child(b)
+	return b
+
+
+func wake_slime(b: SlimeBoss) -> void:
+	b.start_fight()
+	await until(func() -> bool: return b.state != SlimeBoss.State.INTRO)
+
+
+func _globs(w: Node) -> Array[Node]:
+	return w.find_children("*", "SlimeGlob", true, false)
+
+
+func test_slime_boss_volley() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_slime_boss(w, 500.0, SlimeBoss.Attack.VOLLEY)
+	await wake_slime(b)
+	check(await until(func() -> bool: return b.is_telegraphing()), "volley telegraph")
+	b.take_hit(Hit.new(0.0))
+	var predicted: Array[float] = []
+	for v in b.volley_velocities():
+		predicted.append(b.glob_landing_x(v))
+	check_eq(predicted.size(), 5, "five globs in phase 1")
+	p.global_position.x = -600.0  # out of the way
+	await until(func() -> bool: return b.state == SlimeBoss.State.ACTIVE)
+	var globs := _globs(w)
+	check_eq(globs.size(), 5, "five globs fired")
+	var last: Array[float] = []
+	last.resize(globs.size())
+	for i in 120:
+		for j in globs.size():
+			if is_instance_valid(globs[j]):
+				last[j] = (globs[j] as Node2D).global_position.x
+		await get_tree().physics_frame
+	var ok := true
+	for j in globs.size():
+		if absf(last[j] - predicted[j]) > 16.0:
+			ok = false
+	check(ok, "globs land where the arcs predicted (%s vs %s)" % [str(last), str(predicted)])
+	check_eq(_globs(w).size(), 0, "globs gone after landing")
+
+
+func test_slime_boss_volley_gap() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var hit_p := spawn_player(w, 40.0)
+	var b := spawn_slime_boss(w, 600.0, SlimeBoss.Attack.VOLLEY)
+	await wake_slime(b)
+	await until(func() -> bool: return b.is_telegraphing())
+	var xs: Array[float] = []
+	for v in b.volley_velocities():
+		xs.append(b.glob_landing_x(v))
+	p.global_position.x = (xs[1] + xs[2]) * 0.5
+	hit_p.global_position.x = xs[3]
+	await until(func() -> bool: return b.state == SlimeBoss.State.ACTIVE)
+	await until(func() -> bool: return _globs(w).is_empty(), secs(3.0))
+	check_eq(p.health.current, 100.0, "safe in the gap between landing spots")
+	check_eq(hit_p.health.current, 88.0, "a glob on your head deals 12")
+
+
+func test_slime_boss_jump() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_slime_boss(w, 300.0, SlimeBoss.Attack.JUMP)
+	await wake_slime(b)
+	check(await until(func() -> bool: return b.is_telegraphing()), "jump telegraph")
+	check_eq(b.target_x, p.global_position.x, "marker where the player stood")
+	var target := b.target_x
+	p.global_position.x = -350.0
+	await until(func() -> bool: return b.state == SlimeBoss.State.AIRBORNE)
+	await until(func() -> bool: return b.state == SlimeBoss.State.ACTIVE, secs(2.0))
+	check(absf(b.global_position.x - target) < 30.0, "landed on the marker (x=%.0f)" % b.global_position.x)
+	check_eq(p.health.current, 100.0, "moving away avoids it")
+	var pools := w.find_children("*", "AcidPool", true, false)
+	check_eq(pools.size(), 1, "acid pool left behind")
+	p.global_position.x = target + 40.0
+	await frames(10)
+	check_eq(p.health.current, 92.0, "acid hurts (8)")
+
+
+func test_slime_boss_phase_two() -> void:
+	var w := world()
+	spawn_player(w, -600.0)
+	var b := spawn_slime_boss(w, 300.0, SlimeBoss.Attack.SPAWN)
+	await wake_slime(b)
+	var t1 := b.telegraph_time(SlimeBoss.Attack.VOLLEY)
+	b.take_hit(Hit.new(210.0))
+	check_eq(b.phase, 2, "phase 2 at 50%")
+	check_eq(b.state, SlimeBoss.State.TRANSITION, "mutates first")
+	b.take_hit(Hit.new(20.0))
+	check_eq(b.health, 210.0, "immune while mutating")
+	check(b.telegraph_time(SlimeBoss.Attack.VOLLEY) < t1, "faster telegraphs")
+	check_eq(b.current_volley_speeds().size(), 7, "seven globs")
+	await until(func() -> bool: return b.state == SlimeBoss.State.ACTIVE)
+	check_eq(b.alive_minis(), 2, "split off two minis")
+	for m in b.minis:
+		check(m.is_engaged, "minis attack straight away")
+	b.forced_attack = SlimeBoss.Attack.VOLLEY
+	await until(func() -> bool: return b.state == SlimeBoss.State.ACTIVE and b.attack == SlimeBoss.Attack.VOLLEY)
+	await frames(90)
+	check(w.find_children("*", "AcidPool", true, false).size() >= 3, "globs leave acid pools")
+
+
+func test_slime_boss_death() -> void:
+	var w := world()
+	spawn_player(w, -700.0)
+	var b := spawn_slime_boss(w, 300.0, SlimeBoss.Attack.SPAWN)
+	await wake_slime(b)
+	b.take_hit(Hit.new(220.0))
+	await until(func() -> bool: return b.alive_minis() == 2)
+	var pool := AcidPool.new()
+	w.add_child(pool)
+	b.take_hit(Hit.new(999.0))
+	check(b.is_dead, "boss dead")
+	check_eq(b.alive_minis(), 0, "minis die with it")
+	await frames(3)
+	check(not is_instance_valid(pool), "acid cleared")
+	check(_count_potions(w) >= 2, "at least the two guaranteed potions")
+
+
+func test_continue_to_floor2() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var rm := rooms_of(m)
+	var screen: FloorCompleteScreen = m.get("floor_complete")
+	var room := rm.load_room("F1-08")
+	p.global_position.x = room.boss.global_position.x - 300.0
+	await frames(3)
+	await until(func() -> bool: return not room.boss.is_immune())
+	room.boss.take_hit(Hit.new(999.0))
+	p.potions.count = 7
+	p.upgrades.apply(UP_KICK)
+	GameManager.lose_life()
+	p.health.take_damage(40.0, true)
+	p.global_position = room.floor_exit.global_position + Vector2(0, -30)
+	await frames(3)
+	check(screen.visible, "Floor Complete shown")
+	(screen.get_node("%ContinueButton") as Button).pressed.emit()
+	await frames(2)
+	check_eq(GameManager.floor_number, 2, "on Floor 2")
+	check_eq(rm.current_room_id, "F2-01", "at the Floor 2 entrance")
+	check_eq(GameManager.lives, 3, "lives back to 3")
+	check_eq(p.health.current, p.health.max_health, "full health")
+	check_eq(p.potions.count, 7, "unused potions carried over")
+	check(p.upgrades.active.is_empty(), "Floor 1 upgrades gone")
+	check(not get_tree().paused, "playing again")
+	GameManager.floor_number = 1
+
+
+func test_floor2_complete() -> void:
+	GameManager.reset_progress()
+	var m := spawn_main()
+	var p := player_of(m)
+	var rm := rooms_of(m)
+	var screen: FloorCompleteScreen = m.get("floor_complete")
+	GameManager.floor_number = 2
+	rm.start_floor(2)
+	var room := rm.load_room("F2-08")
+	check(room.boss is SlimeBoss, "Mutating Slime in the arena")
+	p.global_position.x = room.boss.global_position.x - 300.0
+	await frames(3)
+	check(p.combat_state.is_boss_active(), "boss fight started")
+	await until(func() -> bool: return not room.boss.is_immune())
+	room.boss.take_hit(Hit.new(999.0))
+	check(GameManager.is_floor_completed(2), "Floor 2 completed")
+	check(GameManager.is_unlocked(GameManager.AREA_BURST), "Magic Burst unlocked")
+	p.global_position = room.floor_exit.global_position + Vector2(0, -30)
+	await frames(3)
+	check(screen.visible, "Floor Complete shown")
+	check(not (screen.get_node("%ContinueButton") as Button).visible, "no Floor 3")
+	check((screen.get_node("%Body") as Label).text.contains("Mutating Slime"), "names the boss")
+	(screen.get_node("%ReplayButton") as Button).pressed.emit()
+	await frames(2)
+	check_eq(rm.current_room_id, "F2-01", "replay restarts Floor 2")
+	GameManager.floor_number = 1
+
+
+func test_slime_boss_platforms() -> void:
+	var w := world()
+	var plat := SolidBlock.new()
+	plat.one_way = true
+	plat.size = Vector2(160, 12)
+	plat.position = Vector2(-80, -96)
+	w.add_child(plat)
+	var p := spawn_player(w, 0.0)
+	p.position = Vector2(0, -96 - 29)
+	p.health._invuln = 99.0
+	var b := spawn_slime_boss(w, 300.0, SlimeBoss.Attack.JUMP)
+	await wake_slime(b)
+	await until(func() -> bool: return b.state == SlimeBoss.State.AIRBORNE)
+	await until(func() -> bool: return b.state != SlimeBoss.State.AIRBORNE, secs(2.0))
+	check(b.feet_y() > -2.0, "landed on the floor, not the platform (feet y=%.0f)" % b.feet_y())
+	check(b.global_position.x < 60.0, "still leapt at the player above")
