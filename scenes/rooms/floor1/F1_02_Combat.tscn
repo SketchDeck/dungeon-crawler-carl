@@ -10,8 +10,9 @@ room_type = 1
 trial = 0
 trial_hint = ""
 exits = PackedStringArray("F1-03")
-signs = PackedStringArray("J kicks. Tap it three times for a combo - the third kick hits hardest.", "Hold K, then release, for a charged power kick. Watch for the red ! before a goblin swings.")
+signs = PackedStringArray("J kicks. Tap it three times for a combo - the third kick hits hardest.", "Hold K, then release, for a charged power kick. Watch for the red ! before a goblin swings.", "Tab switches to Princess Donut: J fires a magic missile, hold K for a charged blast. Tab again for Carl.")
 layout = "############################################
+#..........................................#
 #..........................................#
 #..........................................#
 #..........................................#
@@ -27,7 +28,6 @@ layout = "############################################
 #..........................................#
 #...............=========..................#
 #..........................................#
-#..........................................#
-#E..i...i.............g..........g........1#
+#E..i...i...i.........g..........g........1#
 ############################################
 ############################################"

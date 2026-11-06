@@ -4,10 +4,30 @@ A 2D action platformer prototype in Godot 4 (GDScript). You play Carl, with
 Princess Donut riding on his shoulder, and kick your way through dungeon rooms.
 No logins, database, backend, or JavaScript packages are required.
 
-**Status: Milestone 3 (rooms and lives).** The game starts at the Floor 1
+**Status: Milestone 4 (Donut combat).** The game starts at the Floor 1
 entrance. Floor 1 has 14 rooms connected as in
 [docs/floor-layouts.md](docs/floor-layouts.md). The first four rooms are a
 tutorial, with signs that explain the controls.
+
+Combat modes:
+
+- **Tab** switches between **Carl** (kicks) and **Princess Donut** (magic).
+  The switch is instant and doesn't change your position, movement, health or
+  potions. The same buttons do each mode's attacks.
+- **Carl:** J is a 10/10/20 kick combo; hold and release K for a power kick
+  (15–35 damage).
+- **Donut:** J fires a magic missile (12 damage, 0.3s cooldown, about 12
+  tiles of range); hold and release K for a charged blast (18–35 damage). The
+  blast's size and knockback grow with the charge.
+- Every ability keeps its own cooldown, and cooldowns keep running in the
+  other mode. Switching can't reset them.
+- Pressing Tab during an attack's wind-up queues the switch until the attack
+  lands. Switching while charging or recovering drops that attack.
+- Bolts already in flight keep going after a switch. Solid walls and locked
+  doors stop them; one-way platforms don't. Bolts also trigger switches.
+- The HUD names the active mode (orange for Carl, purple for Donut) and shows
+  all five cooldowns. The other mode's slots are dimmed. A glow at Carl's feet
+  shows the mode too.
 
 Rooms and lives:
 
@@ -48,14 +68,15 @@ Health and healing rules:
 | Move | A/D or arrows | Left stick / D-pad |
 | Jump (hold for higher) | Space | South face button |
 | Dodge | Left Shift | Right shoulder |
-| Kick combo (tap ×3) | J | West face button |
-| Power kick (hold, release) | K | North face button |
+| Switch Carl / Donut | Tab | Left shoulder |
+| Carl: kick combo (tap ×3) · Donut: magic missile | J | West face button |
+| Carl: power kick · Donut: charged blast (hold, release) | K | North face button |
 | Drink potion | H | D-pad Down |
 | Interact (chest, fountain) | E | Left trigger |
 | Skip to next room (debug) | N | — |
 
-The input map already contains the later actions (switch mode, special,
-pause); they do nothing yet. The N debug key goes through the room's first
+The input map already contains the later actions (special attack, pause);
+they do nothing yet. The N debug key goes through the room's first
 exit even when it's locked. Turn it off with `debug_keys` on the Main node.
 
 ## Prerequisites
@@ -89,12 +110,12 @@ scenes/enemies/     EnemyBase.gd (health/knockback/death/drops), Goblin
 scenes/pickups/     PotionPickup
 scenes/rooms/       RoomBase.gd (builds a room from its text map); floor1/ room scenes
 scenes/environment/ SolidBlock, Door, Chest, Fountain, FloorSwitch, RoomSign
-scenes/ui/          HUD, GameOver
+scenes/ui/          HUD (incl. AbilityBar cooldowns), GameOver
 scripts/            GameManager.gd (autoload: lives), RoomManager.gd (transitions,
                     room state), FloorData.gd (floor -> room scenes),
                     CombatStateManager.gd, Fx.gd, GameCamera.gd
-scripts/abilities/  Ability base, KickCombo, ChargedKick
-scripts/combat/     Hit, HitQuery (instant hitbox queries)
+scripts/abilities/  Ability base; Carl: KickCombo, ChargedKick; Donut: MagicMissile, ChargedBlast
+scripts/combat/     Hit, HitQuery (instant hitbox queries), MagicProjectile (Donut's bolts)
 scripts/fx/         Placeholder effects; scripts/Fx.gd autoload (shake, hit stop)
 tests/              Headless test runner
 ```
@@ -118,7 +139,8 @@ Signs take their text from `signs`, in reading order. Exit door N leads to
 `exits[N-1]`. A full jump clears 3 tiles, so keep steps at 3 tiles or less.
 Running jumps reach about 5 tiles across (4 at full height), so pits can be
 up to 4 tiles wide. `make test` checks every room's map: it confirms each
-exit, chest, switch and fountain can be reached from the entrance, and tests
+exit, chest, switch, fountain, enemy and one-way platform can be reached
+from the entrance, and tests
 the jump height and pit crossing with real physics.
 
 ## Run in a browser
@@ -183,9 +205,14 @@ seconds. The tests cover:
   rooms stay cleared, each death costs exactly one life and resets the room,
   Game Over restarts the floor, pit falls, all three trial types, the
   fountain, and the jump-height rule.
+- **Donut combat:** instant switching keeps position, health and movement;
+  switches queue during a wind-up; missile and blast damage, range, facing
+  and charge scaling; cooldowns survive switching; bolts keep flying after a
+  switch, stop at walls, pass one-way platforms, trigger switches, and are
+  removed when the room changes.
 
 Game feel still has to be checked by hand: play through Floor 1, die a few
-times, and run out of lives once.
+times, run out of lives once, and mix kicks and magic in a fight.
 
 Godot's `.godot/` cache, export credentials, and generated `build/` files are
 ignored by Git. The web build also creates `build/.gdignore` so Godot does not

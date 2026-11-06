@@ -1,7 +1,7 @@
 class_name HUD
 extends CanvasLayer
 ## Health bar (with delayed "recent damage" ghost bar), HP text, potion count,
-## combat/regeneration status and controls hint.
+## combat mode and ability cooldowns, combat/regeneration status and controls hint.
 
 const GHOST_DELAY := 0.4
 const GHOST_SPEED := 60.0
@@ -31,6 +31,10 @@ var _t := 0.0
 @onready var _banner_title: Label = %BannerTitle
 @onready var _banner_subtitle: Label = %BannerSubtitle
 @onready var _fade: ColorRect = %Fade
+@onready var _mode_label: Label = %ModeLabel
+@onready var _abilities: Control = %Abilities
+
+var _mode_pulse := 0.0
 
 var _banner_tween: Tween
 
@@ -55,6 +59,18 @@ func bind_player(player: Player) -> void:
 	_on_health_changed(player.health.current, player.health.max_health)
 	_on_potions_changed(player.potions.count, player.potions.capacity)
 	_ghost_value = _current
+	_abilities.set("player", player)
+	player.combat.mode_changed.connect(_on_mode_changed)
+	_on_mode_changed(player.combat.mode)
+	_mode_pulse = 0.0
+
+
+func _on_mode_changed(mode: PlayerCombat.Mode) -> void:
+	# Always name the mode, so it doesn't rely on color alone.
+	var what := "kicks" if mode == PlayerCombat.Mode.CARL else "magic"
+	_mode_label.text = "MODE: %s · %s   [Tab] switch" % [PlayerCombat.mode_name(mode), what]
+	_mode_label.add_theme_color_override("font_color", PlayerCombat.mode_color(mode).lightened(0.15))
+	_mode_pulse = 0.25
 
 
 func bind_rooms(manager: RoomManager) -> void:
@@ -144,6 +160,11 @@ func _process(delta: float) -> void:
 	_potion_pulse = maxf(_potion_pulse - delta, 0.0)
 	var pulse := 1.0 + _potion_pulse * 0.6
 	_potion_row.scale = Vector2(pulse, pulse)
+
+	_mode_pulse = maxf(_mode_pulse - delta, 0.0)
+	var mode_scale := 1.0 + _mode_pulse * 0.6
+	_mode_label.pivot_offset = Vector2(0, _mode_label.size.y * 0.5)
+	_mode_label.scale = Vector2(mode_scale, mode_scale)
 
 	if _player == null:
 		return

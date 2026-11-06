@@ -28,7 +28,8 @@ var _queued := false
 
 func _init() -> void:
 	display_name = "Kick Combo"
-	cooldown = 0.25
+	# Starts when the finisher lands, so it covers its recovery too.
+	cooldown = 0.55
 
 
 func press() -> void:
@@ -53,13 +54,14 @@ func tick(delta: float) -> void:
 				_strike()
 				phase = Phase.RECOVERY
 				_t = finisher_recovery if _is_finisher() else recovery
+				if _is_finisher():
+					start_cooldown()
 		Phase.RECOVERY:
 			_t -= delta
 			if _t <= 0.0:
 				phase = Phase.IDLE
 				if _is_finisher():
 					_next = 0
-					start_cooldown()
 				elif _queued:
 					_begin(current + 1)
 				else:

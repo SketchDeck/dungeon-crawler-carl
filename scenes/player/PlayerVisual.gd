@@ -2,7 +2,9 @@ class_name PlayerVisual
 extends Node2D
 ## Placeholder art: Carl (jacket + boxers) with Princess Donut on his shoulder.
 ## Poses are derived from player state each frame (idle, run, jump, fall,
-## dodge, kick, charge, hurt, dead).
+## dodge, kick, charge, cast, switch, hurt, dead). Both characters are always
+## drawn; the active combat mode shows as a colored glow at Carl's feet, and
+## in Donut mode Donut glows purple and does the casting.
 
 const SKIN := Color("#e8b48a")
 const HAIR := Color("#6b3d1f")
@@ -14,6 +16,7 @@ const DONUT_FUR := Color("#f3e3c7")
 const DONUT_FACE := Color("#b8875a")
 const TIARA := Color("#ffd34d")
 const CHARGE := Color("#ff9a3c")
+const MAGIC := Color("#b46cff")
 
 var player: Player
 var _t := 0.0
@@ -49,8 +52,23 @@ func _draw() -> void:
 	var combat := player.combat
 	var kick := combat.kick_combo
 	var power := combat.charged_kick
+	var missile := combat.magic_missile
+	var blast := combat.charged_blast
+	var donut_mode := combat.mode == PlayerCombat.Mode.DONUT
+	var mode_color := PlayerCombat.mode_color(combat.mode)
 	var on_floor := player.is_on_floor()
 	var crouch := 4.0 if power.is_charging() else 0.0
+
+	# Combat mode glow under Carl's feet (warm = Carl, purple = Donut).
+	draw_set_transform(Vector2(0, 28), 0.0, Vector2(1.0, 0.22))
+	draw_circle(Vector2.ZERO, 20.0, Color(mode_color, 0.35))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+	# Switching: a ring bursts outward in the new mode's color.
+	var since_switch := combat.time_since_switch
+	if since_switch < 0.3:
+		var k := since_switch / 0.3
+		draw_arc(Vector2(0, -4), 20.0 + k * 26.0, 0.0, TAU, 32, Color(mode_color, 0.9 * (1.0 - k)), 4.0 * (1.0 - k) + 1.0)
 
 	# Dodge afterimages.
 	if player.is_dodging():
@@ -107,7 +125,29 @@ func _draw() -> void:
 	draw_circle(head + Vector2(4, -1), 1.4, Color.BLACK)
 	draw_rect(Rect2(head + Vector2(-2, 5), Vector2(10, 4)), HAIR.lightened(0.15))
 
-	_draw_donut(Vector2(-11, -24 + body_y))
+	# Donut leans forward and points a paw while casting.
+	var casting := missile.is_active() or blast.phase == ChargedBlast.Phase.CAST or blast.phase == ChargedBlast.Phase.RECOVERY
+	var donut_at := Vector2(-11, -24 + body_y)
+	if casting or blast.is_charging():
+		donut_at += Vector2(5, -2)
+	if donut_mode:
+		var glow := 0.18 + 0.08 * sin(_t * 5.0)
+		draw_circle(donut_at + Vector2(1, -5), 15.0, Color(MAGIC, glow))
+	_draw_donut(donut_at)
+	if donut_mode:
+		# Two sparkles orbiting Donut.
+		for i in 2:
+			var a := _t * 3.0 + i * PI
+			draw_circle(donut_at + Vector2(1, -6) + Vector2(cos(a) * 13.0, sin(a) * 6.0), 1.6, Color(1, 0.85, 1, 0.8))
+	var paw_tip := Vector2(combat.projectile_origin.x, combat.projectile_origin.y)
+	if casting or blast.is_charging():
+		# Short outstretched paw, with a thin stream of magic down to the bolt.
+		var paw := donut_at + Vector2(11, 3)
+		draw_line(donut_at + Vector2(4, 1), paw, DONUT_FUR, 3.0)
+		draw_circle(paw, 2.5, DONUT_FUR)
+		draw_line(paw, paw_tip, Color(MAGIC, 0.45), 2.0)
+	if missile.phase == MagicMissile.Phase.CAST:
+		draw_circle(paw_tip, 9.0, Color(MAGIC, 0.6))
 
 	# Drinking a potion: flask in hand plus a green flash.
 	var since_potion := player.potions.time_since_use
@@ -128,6 +168,18 @@ func _draw() -> void:
 		var pulse := 1.0 + 0.15 * sin(_t * 30.0) if r >= 1.0 else 1.0
 		var c := CHARGE.lerp(Color.WHITE, 0.6 if r >= 1.0 else 0.0)
 		draw_circle(Vector2(8, 22), (5.0 + r * 12.0) * pulse, Color(c, 0.35 + r * 0.3))
+		draw_arc(Vector2(0, 0), 34.0 + r * 8.0, -PI * 0.5, -PI * 0.5 + TAU * r, 32, Color(c, 0.8), 3.0)
+
+	# Magic blast charge: a growing orb at Donut's paw plus a purple charge ring.
+	if blast.is_charging():
+		var r := blast.charge_ratio()
+		var full := r >= 1.0
+		var pulse := 1.0 + (0.18 * sin(_t * 30.0) if full else 0.0)
+		var c := MAGIC.lerp(Color.WHITE, 0.5 if full else 0.0)
+		var orb := blast.radius_for_ratio(r) * pulse
+		draw_circle(paw_tip, orb * 1.5, Color(c, 0.25))
+		draw_circle(paw_tip, orb, Color(c, 0.75))
+		draw_circle(paw_tip, orb * 0.4, Color(1, 0.95, 1))
 		draw_arc(Vector2(0, 0), 34.0 + r * 8.0, -PI * 0.5, -PI * 0.5 + TAU * r, 32, Color(c, 0.8), 3.0)
 
 

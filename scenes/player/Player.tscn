@@ -10,6 +10,8 @@
 [ext_resource type="Script" path="res://scenes/player/PotionInventory.gd" id="8_potions"]
 [ext_resource type="Script" path="res://scripts/CombatStateManager.gd" id="9_combat_state"]
 [ext_resource type="Script" path="res://scenes/player/HealthRegen.gd" id="10_regen"]
+[ext_resource type="Script" path="res://scripts/abilities/MagicMissile.gd" id="11_missile"]
+[ext_resource type="Script" path="res://scripts/abilities/ChargedBlast.gd" id="12_blast"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(24, 56)
@@ -46,6 +48,12 @@ script = ExtResource("5_kick")
 
 [node name="ChargedKick" type="Node" parent="Combat"]
 script = ExtResource("6_power")
+
+[node name="MagicMissile" type="Node" parent="Combat"]
+script = ExtResource("11_missile")
+
+[node name="ChargedBlast" type="Node" parent="Combat"]
+script = ExtResource("12_blast")
 
 [node name="Camera" type="Camera2D" parent="."]
 position_smoothing_enabled = true

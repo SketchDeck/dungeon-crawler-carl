@@ -99,6 +99,9 @@ func load_room(room_id: String) -> RoomBase:
 
 
 func _unload_current_room() -> void:
+	# Bolts still in flight belong to the old room.
+	for bolt in get_tree().get_nodes_in_group(MagicProjectile.GROUP):
+		bolt.queue_free()
 	if current_room:
 		room_slot.remove_child(current_room)
 		current_room.queue_free()

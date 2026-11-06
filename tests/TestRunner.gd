@@ -63,6 +63,22 @@ func _run() -> void:
 	await _test("full jump clears a 3-tile ledge (room design rule)", test_jump_clears_three_tiles)
 	await _test("every room objective is reachable from the entrance", test_rooms_reachable)
 	await _test("running jump crosses a 4-tile pit (room design rule)", test_jump_crosses_pit)
+	# Milestone 4: Donut combat and mode switching.
+	await _test("mode switch is instant and keeps position/health", test_mode_switch_instant)
+	await _test("movement is identical in both modes", test_switch_keeps_movement)
+	await _test("switch during a windup is queued until the attack fires", test_switch_queued_during_windup)
+	await _test("magic missile deals 12 and knocks back", test_magic_missile)
+	await _test("magic missile has limited range", test_missile_range)
+	await _test("magic missile fires in the facing direction", test_missile_facing_left)
+	await _test("charged blast scales 18..35 and grows", test_charged_blast_scaling)
+	await _test("full charged blast deals 35, then cools down", test_charged_blast_full)
+	await _test("cooldowns survive switching", test_cooldowns_survive_switch)
+	await _test("projectiles keep flying after a switch", test_projectile_after_switch)
+	await _test("switching cancels a charge without firing", test_switch_cancels_charge)
+	await _test("walls stop bolts; one-way platforms don't", test_projectile_walls)
+	await _test("bolts trigger switches", test_projectile_hits_switch)
+	await _test("dead player cannot switch", test_dead_cannot_switch)
+	await _test("bolts are cleared when the room unloads", test_projectiles_cleared_on_room_change)
 	print("\n%d passed, %d failed" % [_passed, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
@@ -954,7 +970,12 @@ func test_rooms_reachable() -> void:
 		for r in rows.size():
 			for c in rows[r].length():
 				var ch := rows[r][c]
-				var target := ch == "C" or ch == "S" or ch == "F" or (ch >= "1" and ch <= "9")
+				# Every one-way platform must be standable-on from the entrance
+				# (checked on the cell above it), even with nothing on it.
+				if ch == "=" and _can_stand(rows, r - 1, c, true):
+					check(after_gates.has(Vector2i(r - 1, c)), "%s: platform at row %d col %d is out of reach" % [id, r, c])
+					continue
+				var target := ch == "C" or ch == "S" or ch == "F" or ch == "g" or ch == "B" or (ch >= "1" and ch <= "9")
 				if not target:
 					continue
 				# Chests may sit behind a trial gate; everything else must be
@@ -989,3 +1010,271 @@ func test_jump_crosses_pit() -> void:
 	await frames(secs(0.3))
 	check(p.is_on_floor() and p.global_position.x > 128.0 and p.global_position.y < 0.0,
 		"landed across the pit (x=%.1f, y=%.1f)" % [p.global_position.x, p.global_position.y])
+
+
+# --- Milestone 4: Donut combat -----------------------------------------------
+
+func bolts() -> int:
+	var n := 0
+	for b in get_tree().get_nodes_in_group(MagicProjectile.GROUP):
+		if not b.is_queued_for_deletion():
+			n += 1
+	return n
+
+
+func test_mode_switch_instant() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(10)
+	var pos := p.global_position
+	var hp := p.health.current
+	var changes := [0]
+	p.combat.mode_changed.connect(func(_m: PlayerCombat.Mode) -> void: changes[0] += 1)
+	check_eq(p.combat.mode, PlayerCombat.Mode.CARL, "starts in Carl mode")
+	check(p.combat.request_switch(), "switch is immediate")
+	check_eq(p.combat.mode, PlayerCombat.Mode.DONUT, "now Donut mode")
+	check_eq(p.global_position, pos, "position unchanged")
+	check_eq(p.health.current, hp, "health unchanged")
+	check_eq(p.potions.count, 3, "no resources consumed")
+	check_eq(changes[0], 1, "mode_changed emitted once")
+	check(p.combat.request_switch(), "switch back")
+	check_eq(p.combat.mode, PlayerCombat.Mode.CARL, "back to Carl")
+
+
+func test_switch_keeps_movement() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(10)
+	p.read_input = true
+	var dist: Array[float] = []
+	for i in 2:
+		p.global_position = Vector2(0, -28)
+		p.velocity = Vector2.ZERO
+		await frames(2)
+		var x0 := p.global_position.x
+		Input.action_press("move_right")
+		await frames(30)
+		Input.action_release("move_right")
+		dist.append(p.global_position.x - x0)
+		p.combat.request_switch()
+	p.read_input = false
+	check(dist[0] > 100.0, "player ran (%.1f px)" % dist[0])
+	check(absf(dist[0] - dist[1]) < 0.5, "same distance in Carl and Donut mode (%.1f vs %.1f)" % [dist[0], dist[1]])
+
+
+func test_switch_queued_during_windup() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 40.0)
+	await frames(5)
+	p.combat.kick_combo.press()
+	await frames(1)
+	check(p.combat.is_busy(), "kick is in its windup")
+	check(not p.combat.request_switch(), "switch is queued, not immediate")
+	check_eq(p.combat.mode, PlayerCombat.Mode.CARL, "still Carl during the windup")
+	await frames(8)
+	check_eq(g.health, 40.0, "the kick still landed")
+	check_eq(p.combat.mode, PlayerCombat.Mode.DONUT, "switched once the kick fired")
+	check(not p.combat.switch_queued, "queue cleared")
+
+
+func test_magic_missile() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 200.0)
+	await frames(5)
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(5)
+	check_eq(bolts(), 1, "one bolt in flight")
+	check_eq(g.health, 50.0, "not hit yet (it travels)")
+	await frames(30)
+	check_eq(g.health, 38.0, "missile deals 12")
+	check(g.global_position.x > 200.0, "knocked away from the player (x=%.1f)" % g.global_position.x)
+	check(g.is_engaged, "hitting an enemy engages it")
+	check(p.combat_state.in_combat, "damaging an enemy starts combat")
+	check_eq(bolts(), 0, "bolt is gone after hitting")
+	check(p.combat.magic_missile.cooldown_remaining <= 0.0, "short cooldown is over")
+
+
+func test_missile_range() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 460.0)
+	await frames(5)
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(70)
+	check_eq(g.health, 50.0, "goblin beyond max range untouched")
+	check_eq(bolts(), 0, "bolt fizzled out")
+
+
+func test_missile_facing_left() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var right := spawn_goblin(w, 150.0)
+	var left := spawn_goblin(w, -150.0)
+	await frames(5)
+	p.facing = -1
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(30)
+	check_eq(left.health, 38.0, "goblin on the left hit")
+	check_eq(right.health, 50.0, "goblin behind untouched")
+	check(left.global_position.x < -150.0, "knocked left")
+
+
+func test_charged_blast_scaling() -> void:
+	var w := world()
+	var p := spawn_player(w)
+	var cb := p.combat.charged_blast
+	check_eq(cb.damage_for_ratio(0.0), 18.0, "min damage")
+	check_eq(cb.damage_for_ratio(1.0), 35.0, "max damage")
+	check_eq(cb.damage_for_ratio(3.0), 35.0, "clamped above")
+	check(cb.radius_for_ratio(1.0) > cb.radius_for_ratio(0.0), "bolt grows with charge")
+	check(cb.radius_for_ratio(0.0) > p.combat.magic_missile.radius, "bigger than the basic missile")
+	check(cb.knockback_for_ratio(1.0).x > cb.knockback_for_ratio(0.0).x, "knockback grows with charge")
+
+
+func test_charged_blast_full() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 200.0)
+	var g2 := spawn_goblin(w, -200.0)
+	await frames(5)
+	p.combat.request_switch()
+	var cb := p.combat.charged_blast
+	cb.press()
+	await frames(70)
+	check_eq(cb.charge_ratio(), 1.0, "fully charged after 1s")
+	cb.release()
+	await frames(35)
+	check_eq(g.health, 15.0, "full blast deals 35")
+	check(cb.cooldown_remaining > 0.0, "cooldown running")
+	cb.press()
+	check(not cb.is_charging(), "cannot charge during cooldown")
+	await frames(50)
+	p.facing = -1
+	cb.press()
+	check(cb.is_charging(), "charging again after the cooldown")
+	cb.release()
+	await frames(35)
+	check_eq(g2.health, 32.0, "uncharged blast deals 18")
+
+
+func test_cooldowns_survive_switch() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(5)
+	var ck := p.combat.charged_kick
+	var mm := p.combat.magic_missile
+	ck.press()
+	await frames(5)
+	ck.release()
+	await frames(10)  # kick has landed and is recovering
+	var before := ck.cooldown_remaining
+	check(before > 0.0, "power kick cooldown started when it landed")
+	check(p.combat.request_switch(), "switch during recovery is immediate")
+	check_eq(ck.cooldown_remaining, before, "switching keeps Carl's cooldown")
+	mm.press()
+	await frames(6)
+	check(mm.cooldown_remaining > 0.0, "missile fired and is cooling down")
+	var missile_cd := mm.cooldown_remaining
+	p.combat.request_switch()
+	check_eq(mm.cooldown_remaining, missile_cd, "switching keeps Donut's cooldown")
+	check(ck.cooldown_remaining > 0.0 and ck.cooldown_remaining < before, "Carl's cooldown kept ticking in Donut mode")
+	ck.press()
+	check(not ck.is_charging(), "power kick still on cooldown after switching back")
+
+
+func test_projectile_after_switch() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 250.0)
+	await frames(5)
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(5)
+	check_eq(bolts(), 1, "bolt in flight")
+	p.combat.request_switch()
+	check_eq(p.combat.mode, PlayerCombat.Mode.CARL, "back in Carl mode")
+	check_eq(bolts(), 1, "bolt still flying")
+	await frames(30)
+	check_eq(g.health, 38.0, "bolt still hit after the switch")
+
+
+func test_switch_cancels_charge() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(5)
+	p.combat.request_switch()
+	var cb := p.combat.charged_blast
+	cb.press()
+	await frames(20)
+	check(cb.is_charging(), "charging")
+	check(p.combat.request_switch(), "switching mid-charge is immediate")
+	check(not cb.is_charging(), "charge dropped")
+	await frames(5)
+	check_eq(bolts(), 0, "nothing fired")
+	check_eq(cb.cooldown_remaining, 0.0, "no cooldown for a cancelled charge")
+
+
+func test_projectile_walls() -> void:
+	var w := world()
+	var wall := SolidBlock.new()
+	wall.size = Vector2(32, 200)
+	wall.position = Vector2(100, -200)
+	w.add_child(wall)
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 200.0)
+	var plat := SolidBlock.new()
+	plat.size = Vector2(32, 200)
+	plat.one_way = true
+	plat.position = Vector2(1100, -200)
+	w.add_child(plat)
+	var p2 := spawn_player(w, 1000.0)
+	var g2 := spawn_goblin(w, 1200.0)
+	await frames(5)
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	p2.combat.request_switch()
+	p2.combat.magic_missile.press()
+	await frames(40)
+	check_eq(g.health, 50.0, "solid wall blocked the bolt")
+	check_eq(g2.health, 38.0, "bolt passed through the one-way platform")
+	check_eq(bolts(), 0, "both bolts gone")
+
+
+func test_projectile_hits_switch() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var sw := FloorSwitch.new()
+	sw.position = Vector2(150, 0)
+	w.add_child(sw)
+	await frames(5)
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(25)
+	check(sw.is_on, "switch activated by a bolt")
+
+
+func test_dead_cannot_switch() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(2)
+	p.health.take_damage(1000.0)
+	check(not p.combat.request_switch(), "switch refused while dead")
+	check_eq(p.combat.mode, PlayerCombat.Mode.CARL, "mode unchanged")
+
+
+func test_projectiles_cleared_on_room_change() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	await frames(5)
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(5)
+	check_eq(bolts(), 1, "bolt in flight")
+	rooms_of(m).load_room("F1-02")
+	check_eq(bolts(), 0, "bolt removed with the old room")
+	check_eq(p.combat.mode, PlayerCombat.Mode.DONUT, "mode kept across rooms")

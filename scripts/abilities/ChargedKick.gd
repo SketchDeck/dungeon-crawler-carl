@@ -26,7 +26,8 @@ var _t := 0.0
 
 func _init() -> void:
 	display_name = "Power Kick"
-	cooldown = 0.6
+	# Starts when the kick lands, so it covers the 0.3s recovery too.
+	cooldown = 0.9
 
 
 func press() -> void:
@@ -50,13 +51,13 @@ func tick(delta: float) -> void:
 			_t -= delta
 			if _t <= 0.0:
 				_strike()
+				start_cooldown()
 				phase = Phase.RECOVERY
 				_t = recovery
 		Phase.RECOVERY:
 			_t -= delta
 			if _t <= 0.0:
 				phase = Phase.IDLE
-				start_cooldown()
 
 
 func cancel() -> void:

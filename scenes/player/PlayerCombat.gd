@@ -1,24 +1,43 @@
 class_name PlayerCombat
 extends Node
-## Routes attack input to the active mode's abilities and resolves their hits.
-## Milestone 1 only has Carl mode; Donut mode is added in Milestone 4.
+## Routes attack input to the active combat mode's abilities and resolves
+## their hits. Carl mode kicks; Donut mode casts magic. Switching is instant,
+## except during an attack's non-interruptible windup, where it is queued
+## until the attack fires. Switching never touches movement, position, health
+## or cooldowns.
 
 signal hit_landed(hit: Hit, targets: int)
+signal mode_changed(mode: Mode)
+
+enum Mode { CARL, DONUT }
+
+const CARL_COLOR := Color("#ffa53c")
+const DONUT_COLOR := Color("#b46cff")
 
 ## Bodies on these layers can be struck by player attacks.
 @export_flags_2d_physics var target_mask := HitQuery.LAYER_ENEMIES | HitQuery.LAYER_HITTABLE
+## Where Donut's bolts start, relative to the player (facing right).
+@export var projectile_origin := Vector2(18, -6)
 
 ## Disabled by tests to drive abilities without real input.
 var read_input := true
 ## Multipliers for temporary upgrades (Milestone 6).
 var kick_damage_multiplier := 1.0
+var magic_damage_multiplier := 1.0
 var knockback_multiplier := 1.0
 var cooldown_multiplier := 1.0
+
+var mode := Mode.CARL
+## A switch requested during a windup, applied once the attack fires.
+var switch_queued := false
+var time_since_switch := 10.0
 
 var player: Player
 
 @onready var kick_combo: KickCombo = $KickCombo
 @onready var charged_kick: ChargedKick = $ChargedKick
+@onready var magic_missile: MagicMissile = $MagicMissile
+@onready var charged_blast: ChargedBlast = $ChargedBlast
 
 
 func _ready() -> void:
@@ -35,18 +54,68 @@ func abilities() -> Array[Ability]:
 	return list
 
 
-func _physics_process(_delta: float) -> void:
+func basic_ability() -> Ability:
+	return kick_combo if mode == Mode.CARL else magic_missile
+
+
+func charged_ability() -> Ability:
+	return charged_kick if mode == Mode.CARL else charged_blast
+
+
+static func mode_name(m: Mode) -> String:
+	return "CARL" if m == Mode.CARL else "DONUT"
+
+
+static func mode_color(m: Mode) -> Color:
+	return CARL_COLOR if m == Mode.CARL else DONUT_COLOR
+
+
+func _physics_process(delta: float) -> void:
+	time_since_switch += delta
 	if player.health.is_dead:
 		interrupt()
+		switch_queued = false
 		return
-	if not read_input or player.is_dodging():
+	if switch_queued and not is_busy():
+		_apply_switch()
+	if not read_input:
 		return
-	if Input.is_action_just_pressed("basic_attack") and not charged_kick.is_active():
-		kick_combo.press()
-	if Input.is_action_just_pressed("charged_attack") and not kick_combo.is_active():
-		charged_kick.press()
-	if charged_kick.is_charging() and not Input.is_action_pressed("charged_attack"):
-		charged_kick.release()
+	if Input.is_action_just_pressed("switch_mode"):
+		request_switch()
+	if player.is_dodging():
+		return
+	var basic := basic_ability()
+	var charged := charged_ability()
+	if Input.is_action_just_pressed("basic_attack") and not charged.is_active():
+		basic.press()
+	if Input.is_action_just_pressed("charged_attack") and not basic.is_active():
+		charged.press()
+	if charged.is_charging() and not Input.is_action_pressed("charged_attack"):
+		charged.release()
+
+
+## Switches between Carl and Donut. Instant unless an attack is mid-windup, in
+## which case the switch happens as soon as that attack fires. Returns true if
+## the mode changed right away.
+func request_switch() -> bool:
+	if player.health.is_dead:
+		return false
+	if is_busy():
+		switch_queued = true
+		return false
+	_apply_switch()
+	return true
+
+
+func _apply_switch() -> void:
+	switch_queued = false
+	# Stop the old mode's charge or recovery. Cooldowns keep running.
+	for ability in abilities():
+		if ability.mode == mode:
+			ability.cancel()
+	mode = Mode.DONUT if mode == Mode.CARL else Mode.CARL
+	time_since_switch = 0.0
+	mode_changed.emit(mode)
 
 
 func is_attacking() -> bool:
@@ -100,3 +169,33 @@ func strike(local_box: Rect2, hit: Hit, heavy: bool, color: Color) -> int:
 		Fx.shake(0.35 if heavy else 0.15)
 		hit_landed.emit(hit, count)
 	return count
+
+
+## Launches one of Donut's bolts in the facing direction.
+func fire_projectile(hit: Hit, radius: float, speed: float, max_range: float, heavy: bool) -> MagicProjectile:
+	hit.knockback.x *= player.facing
+	var bolt := MagicProjectile.new()
+	bolt.hit = hit
+	bolt.direction = player.facing
+	bolt.radius = radius
+	bolt.hit_radius = radius + 3.0
+	bolt.speed = speed
+	bolt.max_range = max_range
+	bolt.heavy = heavy
+	bolt.color = DONUT_COLOR.lerp(Color("#ff8af0"), 0.35) if heavy else DONUT_COLOR
+	bolt.mask = target_mask | HitQuery.LAYER_WORLD
+	bolt.hit_target.connect(_on_projectile_hit)
+	var origin := player.global_position + Vector2(projectile_origin.x * player.facing, projectile_origin.y)
+	player.get_parent().add_child(bolt)
+	bolt.global_position = origin
+	Fx.burst(origin, Color(DONUT_COLOR, 0.7), radius * 1.6, 0.12)
+	if heavy:
+		Fx.shake(0.12)
+	return bolt
+
+
+func _on_projectile_hit(bolt: MagicProjectile, _target: Node) -> void:
+	if bolt.heavy:
+		Fx.hit_stop(0.05)
+		Fx.shake(0.25)
+	hit_landed.emit(bolt.hit, 1)
