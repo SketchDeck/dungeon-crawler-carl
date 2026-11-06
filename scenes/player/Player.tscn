@@ -1,0 +1,74 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/player/PlayerController.gd" id="1_ctrl"]
+[ext_resource type="Script" path="res://scenes/player/PlayerVisual.gd" id="2_visual"]
+[ext_resource type="Script" path="res://scenes/player/PlayerHealth.gd" id="3_health"]
+[ext_resource type="Script" path="res://scenes/player/PlayerCombat.gd" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/abilities/KickCombo.gd" id="5_kick"]
+[ext_resource type="Script" path="res://scripts/abilities/ChargedKick.gd" id="6_power"]
+[ext_resource type="Script" path="res://scripts/GameCamera.gd" id="7_camera"]
+[ext_resource type="Script" path="res://scenes/player/PotionInventory.gd" id="8_potions"]
+[ext_resource type="Script" path="res://scripts/CombatStateManager.gd" id="9_combat_state"]
+[ext_resource type="Script" path="res://scenes/player/HealthRegen.gd" id="10_regen"]
+[ext_resource type="Script" path="res://scripts/abilities/MagicMissile.gd" id="11_missile"]
+[ext_resource type="Script" path="res://scripts/abilities/ChargedBlast.gd" id="12_blast"]
+[ext_resource type="Script" path="res://scripts/abilities/ExplosiveKick.gd" id="13_boom"]
+[ext_resource type="Script" path="res://scripts/abilities/AreaBurst.gd" id="14_burst"]
+[ext_resource type="Script" path="res://scenes/player/PlayerUpgrades.gd" id="15_upgrades"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(24, 56)
+
+[node name="Player" type="CharacterBody2D" groups=["player"]]
+z_index = 1
+collision_layer = 2
+collision_mask = 1
+floor_snap_length = 6.0
+script = ExtResource("1_ctrl")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="Visual" type="Node2D" parent="."]
+script = ExtResource("2_visual")
+
+[node name="Health" type="Node" parent="."]
+script = ExtResource("3_health")
+
+[node name="Potions" type="Node" parent="."]
+script = ExtResource("8_potions")
+
+[node name="CombatState" type="Node" parent="."]
+script = ExtResource("9_combat_state")
+
+[node name="Regen" type="Node" parent="."]
+script = ExtResource("10_regen")
+
+[node name="Combat" type="Node" parent="."]
+script = ExtResource("4_combat")
+
+[node name="KickCombo" type="Node" parent="Combat"]
+script = ExtResource("5_kick")
+
+[node name="ChargedKick" type="Node" parent="Combat"]
+script = ExtResource("6_power")
+
+[node name="MagicMissile" type="Node" parent="Combat"]
+script = ExtResource("11_missile")
+
+[node name="ChargedBlast" type="Node" parent="Combat"]
+script = ExtResource("12_blast")
+
+[node name="ExplosiveKick" type="Node" parent="Combat"]
+script = ExtResource("13_boom")
+
+[node name="AreaBurst" type="Node" parent="Combat"]
+script = ExtResource("14_burst")
+
+[node name="Upgrades" type="Node" parent="."]
+script = ExtResource("15_upgrades")
+
+[node name="Camera" type="Camera2D" parent="."]
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0
+script = ExtResource("7_camera")

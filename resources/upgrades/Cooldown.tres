@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="Upgrade" format=3]
+
+[ext_resource type="Script" path="res://resources/upgrades/Upgrade.gd" id="1_upgrade"]
+
+[resource]
+script = ExtResource("1_upgrade")
+kind = 3
+title = "Quick Reflexes"
+amount = 0.2
