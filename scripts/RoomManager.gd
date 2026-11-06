@@ -9,6 +9,8 @@ extends Node
 
 signal room_entered(room: RoomBase)
 signal floor_started(floor_number: int)
+## The player took the stairs out of the beaten boss room.
+signal floor_exit_reached(floor_number: int)
 
 @export var transition_fade := 0.18
 ## Damage for falling out of the bottom of a room; the player returns to the entrance.
@@ -85,6 +87,8 @@ func load_room(room_id: String) -> RoomBase:
 	room_slot.add_child(room)
 	room.exit_requested.connect(request_exit)
 	room.state_changed.connect(_on_room_state_changed.bind(room_id))
+	room.boss_defeated.connect(_on_boss_defeated)
+	room.floor_exit_requested.connect(_on_floor_exit)
 	current_room = room
 	current_room_id = room_id
 
@@ -96,6 +100,16 @@ func load_room(room_id: String) -> RoomBase:
 	room.activate(player)
 	room_entered.emit(room)
 	return room
+
+
+func _on_boss_defeated() -> void:
+	GameManager.complete_floor(floor_number)
+
+
+func _on_floor_exit() -> void:
+	if transitioning:
+		return
+	floor_exit_reached.emit(floor_number)
 
 
 func _unload_current_room() -> void:

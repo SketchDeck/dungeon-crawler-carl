@@ -4,6 +4,7 @@ extends Node
 
 const PLAYER_SCENE := preload("res://scenes/player/Player.tscn")
 const GOBLIN_SCENE := preload("res://scenes/enemies/Goblin.tscn")
+const BOSS_SCENE := preload("res://scenes/bosses/GoblinBoss.tscn")
 
 var _passed := 0
 var _failed := 0
@@ -79,6 +80,23 @@ func _run() -> void:
 	await _test("bolts trigger switches", test_projectile_hits_switch)
 	await _test("dead player cannot switch", test_dead_cannot_switch)
 	await _test("bolts are cleared when the room unloads", test_projectiles_cleared_on_room_change)
+	# Milestone 5: Goblin Brute.
+	await _test("boss is immune until the fight starts", test_boss_dormant_and_immune)
+	await _test("swing is telegraphed, then hits for 22", test_boss_swing)
+	await _test("swing can be dodged through", test_boss_swing_dodged)
+	await _test("slam shockwave hits grounded players", test_boss_slam_hits)
+	await _test("jumping or standing on a platform avoids the shockwave", test_boss_slam_avoided)
+	await _test("shockwaves reach further in phase 2", test_boss_wave_range)
+	await _test("charge hits the player and dazes the boss at the wall", test_boss_charge)
+	await _test("attacks are followed by a recovery window", test_boss_recovery)
+	await _test("phase 2 starts at 50% with an immune roar", test_boss_phase_two)
+	await _test("phase 2 chains at most two attacks", test_boss_chain)
+	await _test("never the same attack three times in a row", test_boss_no_triple)
+	await _test("dead boss cannot attack", test_boss_dead_no_attack)
+	await _test("boss drops two potions", test_boss_drops_potions)
+	await _test("boss room: fight, boss bar, victory, floor unlock", test_boss_room_flow)
+	await _test("dying in the boss fight resets the boss", test_boss_death_resets)
+	await _test("stairs open the Floor Complete screen; replay restarts", test_floor_complete)
 	print("\n%d passed, %d failed" % [_passed, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
@@ -975,7 +993,7 @@ func test_rooms_reachable() -> void:
 				if ch == "=" and _can_stand(rows, r - 1, c, true):
 					check(after_gates.has(Vector2i(r - 1, c)), "%s: platform at row %d col %d is out of reach" % [id, r, c])
 					continue
-				var target := ch == "C" or ch == "S" or ch == "F" or ch == "g" or ch == "B" or (ch >= "1" and ch <= "9")
+				var target := ch == "C" or ch == "S" or ch == "F" or ch == "g" or ch == "B" or ch == "X" or (ch >= "1" and ch <= "9")
 				if not target:
 					continue
 				# Chests may sit behind a trial gate; everything else must be
@@ -1278,3 +1296,329 @@ func test_projectiles_cleared_on_room_change() -> void:
 	rooms_of(m).load_room("F1-02")
 	check_eq(bolts(), 0, "bolt removed with the old room")
 	check_eq(p.combat.mode, PlayerCombat.Mode.DONUT, "mode kept across rooms")
+
+
+# --- Milestone 5: Goblin Brute -------------------------------------------------
+
+func spawn_boss(w: Node2D, x: float, attack := -1) -> GoblinBoss:
+	var b := BOSS_SCENE.instantiate() as GoblinBoss
+	b.position = Vector2(x, -36)
+	b.forced_attack = attack
+	b.rng.seed = 7
+	w.add_child(b)
+	return b
+
+
+## Waits until cond() is true (or max_frames pass). Returns whether it became true.
+func until(cond: Callable, max_frames := 600) -> bool:
+	for i in max_frames:
+		if cond.call():
+			return true
+		await get_tree().physics_frame
+	return cond.call()
+
+
+## Starts the fight and waits for the intro roar to finish.
+func wake(b: GoblinBoss) -> void:
+	b.start_fight()
+	await until(func() -> bool: return b.state != GoblinBoss.State.INTRO)
+
+
+func test_boss_dormant_and_immune() -> void:
+	var w := world()
+	spawn_player(w, 0.0)
+	var b := spawn_boss(w, 400.0)
+	await frames(30)
+	check_eq(b.state, GoblinBoss.State.DORMANT, "waits while dormant")
+	b.take_hit(Hit.new(50.0))
+	check_eq(b.health, 360.0, "immune while dormant")
+	b.start_fight()
+	check_eq(b.state, GoblinBoss.State.INTRO, "roars first")
+	b.take_hit(Hit.new(50.0))
+	check_eq(b.health, 360.0, "immune during the intro")
+	check(b.is_engaged, "engaged once the fight starts")
+	await wake(b)
+	b.take_hit(Hit.new(10.0))
+	check_eq(b.health, 350.0, "takes damage once the fight is on")
+	await frames(10)
+	check(b.global_position.x < 395.0, "walks toward the player (x=%.0f)" % b.global_position.x)
+
+
+func test_boss_swing() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_boss(w, 80.0, GoblinBoss.Attack.SWING)
+	await wake(b)
+	check(await until(func() -> bool: return b.is_telegraphing()), "swing telegraph shown")
+	check_eq(b.attack, GoblinBoss.Attack.SWING, "telegraphing the swing")
+	check_eq(p.health.current, 100.0, "no damage during the telegraph")
+	await until(func() -> bool: return b.state == GoblinBoss.State.ACTIVE)
+	check_eq(p.health.current, 78.0, "swing deals 22")
+	check(p.velocity.x < 0.0, "knocked away from the boss")
+
+
+func test_boss_swing_dodged() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_boss(w, 80.0, GoblinBoss.Attack.SWING)
+	await wake(b)
+	await until(func() -> bool: return b.is_telegraphing() and b._t <= 0.05)
+	check(p.try_dodge(1.0), "dodge through the boss")
+	await until(func() -> bool: return b.state != GoblinBoss.State.TELEGRAPH)
+	await frames(2)
+	check_eq(p.health.current, 100.0, "dodge i-frames avoid the swing")
+
+
+func test_boss_slam_hits() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_boss(w, 250.0, GoblinBoss.Attack.SLAM)
+	b.swing_range = 0.0  # don't walk in
+	b.approach_speed = 0.0
+	await wake(b)
+	check(await until(func() -> bool: return b.is_telegraphing()), "slam telegraph shown")
+	await until(func() -> bool: return b.state == GoblinBoss.State.ACTIVE)
+	check_eq(p.health.current, 100.0, "shockwave still travelling")
+	await frames(40)
+	check_eq(p.health.current, 85.0, "shockwave deals 15")
+
+
+func test_boss_slam_avoided() -> void:
+	var w := world()
+	var plat := SolidBlock.new()
+	plat.one_way = true
+	plat.size = Vector2(120, 12)
+	plat.position = Vector2(-60, -96)
+	w.add_child(plat)
+	var high := spawn_player(w, 0.0)
+	high.position = Vector2(0, -96 - 29)
+	var jumper := spawn_player(w, 600.0)
+	var b := spawn_boss(w, 300.0, GoblinBoss.Attack.SLAM)
+	b.swing_range = 0.0
+	b.approach_speed = 0.0
+	await frames(5)
+	check(high.is_on_floor() and high.global_position.y < -100.0, "player standing on the platform")
+	await wake(b)
+	await until(func() -> bool: return b.state == GoblinBoss.State.ACTIVE)
+	var jumped := [false]
+	for i in 90:
+		var waves := w.find_children("*", "Shockwave", true, false)
+		for wave: Shockwave in waves:
+			if wave.direction == 1 and not jumped[0] and jumper.global_position.x - wave.global_position.x < 70.0:
+				jumper.velocity.y = jumper.jump_velocity
+				jumped[0] = true
+		await get_tree().physics_frame
+	check(jumped[0], "jumped as the wave arrived")
+	check_eq(high.health.current, 100.0, "platform is above the shockwave")
+	check_eq(jumper.health.current, 100.0, "jumping clears the shockwave")
+
+
+func test_boss_wave_range() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_boss(w, 420.0, GoblinBoss.Attack.SLAM)
+	b.swing_range = 0.0
+	b.approach_speed = 0.0
+	await wake(b)
+	await until(func() -> bool: return b.state == GoblinBoss.State.RECOVER)
+	await frames(90)
+	check_eq(p.health.current, 100.0, "phase 1 wave stops short at 420px")
+	b.health = 200.0
+	b.take_hit(Hit.new(30.0))
+	check_eq(b.phase, 2, "phase 2")
+	await until(func() -> bool: return b.state == GoblinBoss.State.ACTIVE)
+	await frames(90)
+	check_eq(p.health.current, 85.0, "phase 2 wave reaches 420px")
+
+
+func test_boss_charge() -> void:
+	var w := world()
+	var wall := SolidBlock.new()
+	wall.size = Vector2(32, 300)
+	wall.position = Vector2(-32, -300)
+	w.add_child(wall)
+	var p := spawn_player(w, 200.0)
+	var b := spawn_boss(w, 560.0, GoblinBoss.Attack.CHARGE)
+	b.swing_range = 0.0
+	b.approach_speed = 0.0
+	await wake(b)
+	check(await until(func() -> bool: return b.is_telegraphing()), "charge telegraph shown")
+	check_eq(b.facing, -1, "aimed at the player")
+	check_eq(p.health.current, 100.0, "no damage while telegraphing")
+	await until(func() -> bool: return b.state == GoblinBoss.State.CHARGING)
+	check(await until(func() -> bool: return b.state == GoblinBoss.State.STUNNED, 120), "dazed after hitting the wall")
+	check_eq(p.health.current, 80.0, "charge deals 20 once")
+	check(b.global_position.x < 100.0, "rushed across the room (x=%.0f)" % b.global_position.x)
+
+
+func test_boss_recovery() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_boss(w, 80.0, GoblinBoss.Attack.SWING)
+	check_eq(b.recovery_time(), 1.1, "phase 1 recovery")
+	await wake(b)
+	await until(func() -> bool: return b.state == GoblinBoss.State.RECOVER)
+	var hp := p.health.current
+	p.health._invuln = 0.0
+	await frames(secs(0.9))
+	check_eq(b.state, GoblinBoss.State.RECOVER, "still recovering 0.9s later")
+	check_eq(p.health.current, hp, "no attacks during recovery")
+	b.phase = 2
+	check(b.recovery_time() < 0.7, "phase 2 recovers faster")
+
+
+func test_boss_phase_two() -> void:
+	var w := world()
+	spawn_player(w, 0.0)
+	var b := spawn_boss(w, 300.0)
+	var phases: Array[int] = []
+	b.phase_changed.connect(func(ph: int) -> void: phases.append(ph))
+	var t1 := b.telegraph_time(GoblinBoss.Attack.SLAM)
+	var r1 := b.current_wave_range()
+	await wake(b)
+	b.take_hit(Hit.new(170.0))
+	check_eq(b.phase, 1, "still phase 1 above 50%")
+	b.take_hit(Hit.new(10.0))
+	check_eq(b.phase, 2, "phase 2 at 50%")
+	check_eq(phases, [2] as Array[int], "phase_changed emitted once")
+	check_eq(b.state, GoblinBoss.State.TRANSITION, "roars into phase 2")
+	b.take_hit(Hit.new(20.0))
+	check_eq(b.health, 180.0, "immune during the phase change")
+	check(b.telegraph_time(GoblinBoss.Attack.SLAM) < t1, "faster telegraphs")
+	check(b.current_wave_range() > r1, "longer shockwaves")
+	await until(func() -> bool: return b.state != GoblinBoss.State.TRANSITION)
+	b.take_hit(Hit.new(20.0))
+	check_eq(b.health, 160.0, "vulnerable again after the roar")
+
+
+func test_boss_chain() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_boss(w, 80.0, GoblinBoss.Attack.SWING)
+	b.phase2_chain_chance = 1.0
+	await wake(b)
+	b.phase = 2
+	await until(func() -> bool: return b.state == GoblinBoss.State.ACTIVE)
+	await until(func() -> bool: return b.state != GoblinBoss.State.ACTIVE)
+	check_eq(b.state, GoblinBoss.State.TELEGRAPH, "chained straight into another telegraph")
+	await until(func() -> bool: return b.state == GoblinBoss.State.ACTIVE)
+	await until(func() -> bool: return b.state != GoblinBoss.State.ACTIVE)
+	check_eq(b.state, GoblinBoss.State.RECOVER, "recovers after the chain")
+	check(p.health.current < 100.0, "chain still telegraphed and hit")
+
+
+func test_boss_no_triple() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_boss(w, 80.0)
+	await frames(2)
+	var ok := true
+	for i in 300:
+		b._begin_attack(b._pick_attack(p))
+		var h := b._history
+		if h.size() >= 3 and h[-1] == h[-2] and h[-2] == h[-3]:
+			ok = false
+	check(ok, "no attack repeated three times in a row")
+
+
+func test_boss_dead_no_attack() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_boss(w, 80.0, GoblinBoss.Attack.SLAM)
+	await wake(b)
+	await until(func() -> bool: return b.is_telegraphing())
+	b.take_hit(Hit.new(999.0))
+	check(b.is_dead, "boss died mid-telegraph")
+	await frames(60)
+	check_eq(p.health.current, 100.0, "no attack after death")
+	check_eq(w.find_children("*", "Shockwave", true, false).size(), 0, "no shockwave spawned")
+
+
+func test_boss_drops_potions() -> void:
+	var w := world()
+	spawn_player(w, -300.0)
+	var b := spawn_boss(w, 200.0)
+	await wake(b)
+	b.take_hit(Hit.new(999.0))
+	await frames(3)
+	check_eq(_count_potions(w), 2, "two guaranteed potions")
+
+
+func _boss_room(m: Node) -> RoomBase:
+	return rooms_of(m).load_room("F1-08")
+
+
+func test_boss_room_flow() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var hud: HUD = m.get("hud")
+	var room := _boss_room(m)
+	check(room.boss != null, "boss spawned")
+	await frames(10)
+	check_eq(room.boss.state, GoblinBoss.State.DORMANT, "dormant while the player is at the entrance")
+	check(not p.combat_state.is_boss_active(), "no boss encounter yet")
+	check(not hud.is_boss_bar_visible(), "no boss bar yet")
+	check(not room.floor_exit.open, "stairs closed")
+	p.global_position.x = room.boss.global_position.x - 300.0
+	await frames(3)
+	check(room.encounter_active, "fight starts when the player walks in")
+	check(p.combat_state.is_boss_active(), "boss encounter active")
+	check(hud.is_boss_bar_visible(), "boss bar shown")
+	var boss := room.boss
+	await wake(boss)
+	p.health.take_damage(30.0)
+	boss.take_hit(Hit.new(999.0))
+	check(boss.is_dead, "boss defeated")
+	check(not p.combat_state.is_boss_active(), "boss encounter over")
+	check(not p.combat_state.in_combat, "combat ends with the boss")
+	check(room.is_cleared(), "room cleared")
+	check(room.floor_exit.open, "stairs open")
+	check(GameManager.is_floor_completed(1), "floor 1 completed")
+	check(GameManager.highest_unlocked_floor >= 2, "floor 2 unlocked")
+	await frames(secs(3.2))
+	check(p.regen.is_active(), "auto-heal resumes 3s after the boss dies")
+	await frames(secs(0.5))
+	check(not hud.is_boss_bar_visible(), "boss bar hidden after victory")
+
+
+func test_boss_death_resets() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var room := _boss_room(m)
+	p.global_position.x = room.boss.global_position.x - 300.0
+	await frames(3)
+	await wake(room.boss)
+	room.boss.take_hit(Hit.new(100.0))
+	p.health.take_damage(999.0, true)
+	await frames(secs(1.7))
+	var fresh := rooms_of(m).current_room
+	check(fresh != room, "boss room reloaded")
+	check_eq(GameManager.lives, 2, "one life lost")
+	check_eq(fresh.boss.health, 360.0, "boss back to full health")
+	check_eq(fresh.boss.state, GoblinBoss.State.DORMANT, "boss waits again")
+	check(not p.combat_state.is_boss_active(), "encounter reset")
+
+
+func test_floor_complete() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var screen: FloorCompleteScreen = m.get("floor_complete")
+	var room := _boss_room(m)
+	p.global_position.x = room.boss.global_position.x - 300.0
+	await frames(3)
+	await wake(room.boss)
+	room.boss.take_hit(Hit.new(999.0))
+	p.potions.count = 5
+	p.global_position = room.floor_exit.global_position + Vector2(0, -30)
+	await frames(3)
+	check(screen.visible, "Floor Complete screen shown")
+	check(get_tree().paused, "game paused")
+	check(not (screen.get_node("%ContinueButton") as Button).visible, "no Continue until Floor 2 exists")
+	(screen.get_node("%ReplayButton") as Button).pressed.emit()
+	await frames(2)
+	check(not screen.visible, "screen closed")
+	check(not get_tree().paused, "unpaused")
+	check_eq(rooms_of(m).current_room_id, "F1-01", "back at the entrance")
+	check_eq(GameManager.lives, 3, "3 lives")
+	check_eq(p.potions.count, 3, "potions reset to 3")
+	check(not rooms_of(m).room_states.has("F1-08"), "room progress reset")

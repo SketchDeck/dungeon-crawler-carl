@@ -67,6 +67,10 @@ F1-01 Entrance → F1-02 Combat → F1-03 Safe → F1-04 Challenge → F1-05 Com
   scene's `layout` (see README, "Editing rooms"). Floor 1 trials:
   F1-04 climb to the chest, F1-U1 kick three switches, F1-U3 cross the pits,
   F1-D3 defeat the guards.
+- The F1-08 boss arena is 30 tiles wide so the whole fight fits on screen,
+  with two low platforms for dodging charges and shockwaves. The layout doc
+  gives F1-08 no exits, so the floor ends at stairs (`X`) that open once the
+  Goblin Brute is beaten.
 
 - **Challenge rooms are the spec's Treasure rooms.** Each one is a trial or
   puzzle (platforming, hazard or combat challenge) that ends in the

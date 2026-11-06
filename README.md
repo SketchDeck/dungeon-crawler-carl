@@ -4,7 +4,8 @@ A 2D action platformer prototype in Godot 4 (GDScript). You play Carl, with
 Princess Donut riding on his shoulder, and kick your way through dungeon rooms.
 No logins, database, backend, or JavaScript packages are required.
 
-**Status: Milestone 4 (Donut combat).** The game starts at the Floor 1
+**Status: Milestone 5 (first boss).** Floor 1 is playable from the entrance
+to the Goblin Brute. The game starts at the Floor 1
 entrance. Floor 1 has 14 rooms connected as in
 [docs/floor-layouts.md](docs/floor-layouts.md). The first four rooms are a
 tutorial, with signs that explain the controls.
@@ -38,7 +39,8 @@ Rooms and lives:
   shows a placeholder message; the upgrade choice comes in Milestone 6.
 - **Safe rooms** have no enemies and a fountain that fully heals you once per
   floor run.
-- The **boss room** (F1-08) is an empty arena with no exit until Milestone 5.
+- The **boss room** (F1-08) holds the Goblin Brute (see below). Beating him
+  opens stairs that finish the floor.
 - Doors only lead forward, following the arrows in the layout.
 - You have **3 lives**. Dying costs one life and restarts the current room:
   its enemies come back, you return to full health, and you keep your
@@ -46,6 +48,32 @@ Rooms and lives:
 - Losing the last life shows **Game Over**. Restarting the floor sends you
   back to the entrance with 3 lives, 3 potions and every room reset.
 - Falling into a pit costs 20 HP and returns you to the room's entrance.
+
+The Goblin Brute (Floor 1 boss):
+
+- The fight starts when you walk past the arena sign. A boss health bar
+  appears at the top of the screen, and there's no automatic healing until
+  he's beaten. Potions still work.
+- Every attack has a warning, then a recovery window afterwards:
+  - **Charge:** he crouches, a red arrow and "!!" show the direction, then he
+    rushes across the arena (20 damage). Jump over him, dodge through, or
+    stand on a platform. If he hits a wall he's dazed for 1.6s.
+  - **Ground slam:** fists up and red stripes on the floor, then a shockwave
+    runs along the ground both ways (15 damage). Jump it or stand on a
+    platform.
+  - **Club swing:** club pulled back and a red box shows its reach (22
+    damage). Back off or dodge through.
+- **Phase 2** starts at half health: he roars (immune briefly), turns red,
+  and gets faster. Warnings are 25% shorter, recovery is about half as long,
+  he charges faster, shockwaves travel almost twice as far, and he sometimes
+  chains a second attack straight after the first.
+- He has 360 HP and can't be knocked back. He's immune while roaring. He
+  drops 2 potions when he dies.
+- Dying in the fight costs a life and resets him to full health.
+- After he's beaten, take the stairs for the **Floor Complete** screen.
+  Floor 2 comes in Milestone 8, so for now you can replay Floor 1 (3 lives,
+  3 potions, fresh rooms). Beating him marks Floor 1 as completed and
+  unlocks Floor 2 (saved to disk in Milestone 8).
 
 Health and healing rules:
 
@@ -107,10 +135,11 @@ scenes/player/      Player.tscn + PlayerController (movement), PlayerCombat,
                     PlayerHealth, PotionInventory, HealthRegen (auto-heal),
                     PlayerVisual (placeholder art)
 scenes/enemies/     EnemyBase.gd (health/knockback/death/drops), Goblin
+scenes/bosses/      GoblinBoss (Goblin Brute), Shockwave
 scenes/pickups/     PotionPickup
 scenes/rooms/       RoomBase.gd (builds a room from its text map); floor1/ room scenes
-scenes/environment/ SolidBlock, Door, Chest, Fountain, FloorSwitch, RoomSign
-scenes/ui/          HUD (incl. AbilityBar cooldowns), GameOver
+scenes/environment/ SolidBlock, Door, FloorExit (stairs), Chest, Fountain, FloorSwitch, RoomSign
+scenes/ui/          HUD (incl. AbilityBar cooldowns, boss bar), GameOver, FloorComplete
 scripts/            GameManager.gd (autoload: lives), RoomManager.gd (transitions,
                     room state), FloorData.gd (floor -> room scenes),
                     CombatStateManager.gd, Fx.gd, GameCamera.gd
@@ -133,6 +162,7 @@ view. Legend:
 #  solid      =  one-way platform   G  gate (opens when the trial is done)
 E  entrance   1-9  exit door N      g  Goblin
 C  chest      F  fountain           S  switch     i  sign     B  boss spawn
+X  stairs to the next floor (open once the boss is beaten)
 ```
 
 Signs take their text from `signs`, in reading order. Exit door N leads to
@@ -210,9 +240,18 @@ seconds. The tests cover:
   and charge scaling; cooldowns survive switching; bolts keep flying after a
   switch, stop at walls, pass one-way platforms, trigger switches, and are
   removed when the room changes.
+- **Goblin Brute:** immune until the fight starts; each attack's warning
+  comes before its damage (swing 22, slam 15, charge 20); dodging the swing,
+  jumping or standing on a platform avoids the shockwave; phase 2 at 50% with
+  an immune roar, faster warnings, shorter recovery, longer shockwaves and at
+  most two chained attacks; no attack three times in a row; no attacks after
+  death; 2 potion drops; the boss room flow (wakes on approach, boss bar,
+  encounter ends, floor unlocked, auto-heal returns 3s later); dying resets
+  the boss; the stairs and Floor Complete replay.
 
 Game feel still has to be checked by hand: play through Floor 1, die a few
-times, run out of lives once, and mix kicks and magic in a fight.
+times, run out of lives once, mix kicks and magic in a fight, and beat the
+Goblin Brute (check that his warnings are readable and the fight feels fair).
 
 Godot's `.godot/` cache, export credentials, and generated `build/` files are
 ignored by Git. The web build also creates `build/.gdignore` so Godot does not

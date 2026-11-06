@@ -20,7 +20,8 @@ func _process(delta: float) -> void:
 	if not is_instance_valid(_player):
 		_player = get_tree().get_first_node_in_group("player") as Player
 	var near := _player != null and absf(_player.global_position.x - global_position.x) < SHOW_DISTANCE \
-		and absf(_player.global_position.y - global_position.y) < 120.0 and _is_nearest()
+		and absf(_player.global_position.y - global_position.y) < 120.0 and _is_nearest() \
+		and not _player.combat_state.is_boss_active()
 	_alpha = move_toward(_alpha, 1.0 if near else 0.0, delta * 6.0)
 	queue_redraw()
 

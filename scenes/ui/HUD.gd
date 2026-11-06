@@ -1,7 +1,8 @@
 class_name HUD
 extends CanvasLayer
 ## Health bar (with delayed "recent damage" ghost bar), HP text, potion count,
-## combat mode and ability cooldowns, combat/regeneration status and controls hint.
+## combat mode and ability cooldowns, combat/regeneration status, boss health
+## bar and controls hint.
 
 const GHOST_DELAY := 0.4
 const GHOST_SPEED := 60.0
@@ -36,6 +37,17 @@ var _t := 0.0
 
 var _mode_pulse := 0.0
 
+@onready var _boss_bar: Control = %BossBar
+@onready var _boss_name: Label = %BossName
+@onready var _boss_health: ProgressBar = %BossHealth
+@onready var _boss_ghost: ProgressBar = %BossGhost
+
+var _boss: GoblinBoss
+var _boss_fill: StyleBoxFlat
+var _boss_ghost_value := 0.0
+var _boss_ghost_wait := 0.0
+var _boss_hide_t := 0.0
+
 var _banner_tween: Tween
 
 
@@ -50,6 +62,11 @@ func _ready() -> void:
 	_bar.add_theme_stylebox_override("fill", _fill_box)
 	_ghost.add_theme_stylebox_override("background", _flat(Color("#0d0f14"), Color("#53657c")))
 	_ghost.add_theme_stylebox_override("fill", _ghost_fill_box)
+	_boss_fill = _flat(Color("#c8302a"))
+	_boss_health.add_theme_stylebox_override("background", _flat(Color(0, 0, 0, 0)))
+	_boss_health.add_theme_stylebox_override("fill", _boss_fill)
+	_boss_ghost.add_theme_stylebox_override("background", _flat(Color("#0d0f14"), Color("#7c5353")))
+	_boss_ghost.add_theme_stylebox_override("fill", _flat(Color("#f2d0a0")))
 
 
 func bind_player(player: Player) -> void:
@@ -82,6 +99,8 @@ func _on_lives_changed(lives: int) -> void:
 
 
 func _on_room_entered(room: RoomBase, manager: RoomManager) -> void:
+	hide_boss_bar()
+	room.boss_started.connect(show_boss_bar)
 	_room_label.text = "%s  ·  %s" % [FloorData.floor_name(manager.floor_number), room.display_name]
 	var title := ""
 	var subtitle := ""
@@ -129,6 +148,65 @@ func fade(alpha: float, duration: float) -> Tween:
 	return tween
 
 
+# --- Boss bar -------------------------------------------------------------------
+
+func show_boss_bar(boss: GoblinBoss) -> void:
+	_boss = boss
+	_boss_name.text = boss.boss_name
+	_boss_health.max_value = boss.max_health
+	_boss_ghost.max_value = boss.max_health
+	_boss_ghost_value = boss.health
+	_boss_fill.bg_color = Color("#c8302a")
+	_boss_hide_t = 0.0
+	_boss_bar.visible = true
+	_boss_bar.modulate.a = 1.0
+	boss.phase_changed.connect(_on_boss_phase)
+	boss.died.connect(_on_boss_died)
+	show_banner(boss.boss_name, "Learn his tells: crouch = charge, fists up = slam (jump!), club back = swing", Color("#ff7a7a"))
+
+
+func hide_boss_bar() -> void:
+	_boss = null
+	_boss_bar.visible = false
+
+
+func is_boss_bar_visible() -> bool:
+	return _boss_bar.visible
+
+
+func _on_boss_phase(_phase: int) -> void:
+	_boss_fill.bg_color = Color("#ff5a1f")
+	show_banner("PHASE 2", "The Brute is enraged: faster attacks, longer shockwaves", Color("#ff5a1f"))
+
+
+func _on_boss_died(_enemy: EnemyBase) -> void:
+	_boss_hide_t = 2.0
+	show_banner("VICTORY", "The Goblin Brute is down. Take the stairs.", Color("#ffd34d"))
+
+
+func _update_boss_bar(delta: float) -> void:
+	# The boss node is freed shortly after it dies; the bar keeps fading out.
+	if not _boss_bar.visible:
+		return
+	var hp := _boss.health if is_instance_valid(_boss) else 0.0
+	if hp < _boss_health.value:
+		_boss_ghost_wait = GHOST_DELAY
+	_boss_health.value = hp
+	if _boss_ghost_value > hp:
+		if _boss_ghost_wait > 0.0:
+			_boss_ghost_wait -= delta
+		else:
+			_boss_ghost_value = maxf(_boss_ghost_value - GHOST_SPEED * 3.0 * delta, hp)
+	else:
+		_boss_ghost_value = hp
+	_boss_ghost.value = _boss_ghost_value
+	if _boss_hide_t > 0.0:
+		_boss_hide_t -= delta
+		_boss_bar.modulate.a = clampf(_boss_hide_t, 0.0, 1.0)
+		if _boss_hide_t <= 0.0:
+			hide_boss_bar()
+
+
 func _on_health_changed(current: float, maximum: float) -> void:
 	if current < _current:
 		_ghost_wait = GHOST_DELAY
@@ -161,6 +239,7 @@ func _process(delta: float) -> void:
 	var pulse := 1.0 + _potion_pulse * 0.6
 	_potion_row.scale = Vector2(pulse, pulse)
 
+	_update_boss_bar(delta)
 	_mode_pulse = maxf(_mode_pulse - delta, 0.0)
 	var mode_scale := 1.0 + _mode_pulse * 0.6
 	_mode_label.pivot_offset = Vector2(0, _mode_label.size.y * 0.5)

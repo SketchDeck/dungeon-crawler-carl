@@ -6,6 +6,8 @@ extends Node2D
 ## (its encounter resets) -> respawn at full health, keeping potions.
 ## Losing the last life: Game Over -> restart the floor with 3 lives, full
 ## health, 3 potions and fresh room progress.
+## Beating the boss and taking the stairs: Floor Complete screen -> continue
+## to the next floor (full health, 3 lives, potions kept) or replay this one.
 
 @export var respawn_delay := 1.5
 ## Debug: N jumps through the current room's first exit, ignoring locks.
@@ -16,6 +18,7 @@ extends Node2D
 @onready var room_slot: Node2D = $Room
 @onready var room_manager: RoomManager = $RoomManager
 @onready var game_over: GameOverScreen = $GameOver
+@onready var floor_complete: FloorCompleteScreen = $FloorComplete
 
 
 func _ready() -> void:
@@ -24,6 +27,9 @@ func _ready() -> void:
 	room_manager.setup(player, room_slot, hud)
 	player.health.died.connect(_on_player_died)
 	game_over.restart_requested.connect(restart_floor)
+	room_manager.floor_exit_reached.connect(_on_floor_exit_reached)
+	floor_complete.continue_requested.connect(continue_to_next_floor)
+	floor_complete.replay_requested.connect(restart_floor)
 	GameManager.reset_lives()
 	room_manager.start_floor(GameManager.floor_number)
 
@@ -53,6 +59,20 @@ func respawn_in_current_room() -> void:
 func restart_floor() -> void:
 	GameManager.reset_lives()
 	player.potions.reset()
+	player.respawn(player.global_position)
+	room_manager.start_floor(GameManager.floor_number)
+
+
+func _on_floor_exit_reached(floor_number: int) -> void:
+	floor_complete.show_screen(floor_number, GameManager.lives, player.potions.count)
+
+
+## Next floor: full health, lives back to 3, unused potions carried over.
+func continue_to_next_floor() -> void:
+	if not FloorData.has_floor(GameManager.floor_number + 1):
+		return
+	GameManager.floor_number += 1
+	GameManager.reset_lives()
 	player.respawn(player.global_position)
 	room_manager.start_floor(GameManager.floor_number)
 
