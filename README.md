@@ -4,9 +4,9 @@ A 2D action platformer prototype in Godot 4 (GDScript). You play Carl, with
 Princess Donut riding on his shoulder, and kick your way through dungeon rooms.
 No logins, database, backend, or JavaScript packages are required.
 
-**Status: Milestone 6 (progression and environmental combat).** Floor 1 is
-playable from the entrance to the Goblin Brute, with special abilities,
-treasure upgrades and hazards. The game starts at the Floor 1 entrance. Floor 1 has 14 rooms connected as in
+**Status: Milestone 7 (Dungeon AI).** Floor 1 is playable from the entrance
+to the Goblin Brute, with special abilities, treasure upgrades, hazards and
+Dungeon AI achievements. The game starts at the Floor 1 entrance. Floor 1 has 14 rooms connected as in
 [docs/floor-layouts.md](docs/floor-layouts.md). The first four rooms are a
 tutorial, with signs that explain the controls.
 
@@ -74,6 +74,23 @@ Environmental combat:
   big blasts) that slams into another enemy deals 15 to it and takes 8
   itself, once per pair per knockback.
 - None of this is required to clear a room.
+
+Dungeon AI achievements:
+
+- The Dungeon AI announces showy plays in a panel at the top right. It never
+  pauses the game, and several announcements queue up.
+- **Kick an enemy into another enemy:** +50% knockback for this room and the
+  next three.
+- **Kill an enemy with spikes or a barrel:** +25% damage (kicks and magic)
+  for this room and the next three.
+- **Clear a combat room without taking any damage (Untouchable):** +25 HP
+  straight away.
+- Each achievement triggers at most once per room encounter. Restarting a
+  room after dying starts a new encounter. Earning a boost again refreshes it
+  to three rooms rather than stacking.
+- Active boosts and their rooms left show under the HUD's upgrades line.
+  Boosts survive losing a life (a restarted room doesn't count as a new room)
+  and end when the floor restarts or is completed.
 
 Rooms and lives:
 
@@ -187,10 +204,11 @@ scenes/pickups/     PotionPickup
 scenes/rooms/       RoomBase.gd (builds a room from its text map); floor1/ room scenes
 scenes/environment/ SolidBlock, Door, FloorExit (stairs), Chest, Fountain, FloorSwitch, RoomSign,
                     SpikeTrap, ExplosiveBarrel, Breakable (crates, cracked walls)
-scenes/ui/          HUD (incl. AbilityBar cooldowns, boss bar), GameOver, FloorComplete,
+scenes/ui/          HUD (incl. AbilityBar cooldowns, boss bar, AchievementPanel), GameOver, FloorComplete,
                     UpgradeSelection
-scripts/            GameManager.gd (autoload: lives, unlocks), SaveManager.gd (autoload:
-                    user://save.json), RoomManager.gd (transitions,
+scripts/            GameManager.gd (autoload: lives, unlocks, gameplay events),
+                    SaveManager.gd (autoload: user://save.json), DungeonAIManager.gd
+                    (achievements), RoomManager.gd (transitions,
                     room state), FloorData.gd (floor -> room scenes),
                     CombatStateManager.gd, Fx.gd, GameCamera.gd
 scripts/abilities/  Ability base; Carl: KickCombo, ChargedKick, ExplosiveKick;
@@ -314,12 +332,18 @@ seconds. The tests cover:
   chain and hurt both sides; crates and walls need strong hits; enemy
   collisions damage once; weak hits cause no collision. Tests use their own
   save file, never `user://save.json`.
+- **Dungeon AI:** real collisions and deaths reach the AI; each achievement's
+  announcement (title, description, reward) and reward; no repeats within an
+  encounter; boosts last exactly this room and the next three; normal kills
+  don't count as environmental; a spike kill in F1-05 does; getting hit
+  spoils Untouchable; announcements queue and never pause; boosts survive
+  death and clear on floor restart.
 
 Game feel still has to be checked by hand: play through Floor 1, die a few
 times, run out of lives once, mix kicks and magic in a fight, and beat the
 Goblin Brute (check that his warnings are readable and the fight feels fair).
 Also try the specials (press U to unlock them), kick goblins into spikes and
-each other, and pick a few upgrades.
+each other, pick a few upgrades, and earn each Dungeon AI achievement.
 
 Godot's `.godot/` cache, export credentials, and generated `build/` files are
 ignored by Git. The web build also creates `build/.gdignore` so Godot does not

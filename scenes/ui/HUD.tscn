@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scenes/ui/PotionIcon.gd" id="2_icon"]
 [ext_resource type="Script" path="res://scenes/ui/LivesIcons.gd" id="3_lives"]
 [ext_resource type="Script" path="res://scenes/ui/AbilityBar.gd" id="4_abilities"]
+[ext_resource type="Script" path="res://scenes/ui/AchievementPanel.gd" id="5_achievements"]
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
@@ -107,6 +108,14 @@ script = ExtResource("4_abilities")
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.85, 0.45, 0.9)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 12
+
+[node name="BoostsLabel" type="Label" parent="TopLeft"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 1, 0.55, 0.9)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 3
 theme_override_font_sizes/font_size = 12
@@ -245,6 +254,19 @@ offset_left = -1.0
 offset_right = 1.0
 mouse_filter = 2
 color = Color(1, 1, 1, 0.7)
+
+[node name="Achievement" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -416.0
+offset_top = 104.0
+offset_right = -16.0
+offset_bottom = 200.0
+grow_horizontal = 0
+mouse_filter = 2
+script = ExtResource("5_achievements")
 
 [node name="Fade" type="ColorRect" parent="."]
 unique_name_in_owner = true

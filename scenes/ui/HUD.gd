@@ -35,6 +35,8 @@ var _t := 0.0
 @onready var _mode_label: Label = %ModeLabel
 @onready var _abilities: Control = %Abilities
 @onready var _upgrades_label: Label = %UpgradesLabel
+@onready var _boosts_label: Label = %BoostsLabel
+@onready var achievement_panel: AchievementPanel = %Achievement
 
 var _mode_pulse := 0.0
 
@@ -81,6 +83,8 @@ func bind_player(player: Player) -> void:
 	player.combat.mode_changed.connect(_on_mode_changed)
 	player.upgrades.changed.connect(_on_upgrades_changed)
 	_on_upgrades_changed(player.upgrades.active)
+	player.upgrades.boosts_changed.connect(_on_boosts_changed)
+	_on_boosts_changed()
 	_on_mode_changed(player.combat.mode)
 	_mode_pulse = 0.0
 
@@ -91,6 +95,22 @@ func _on_upgrades_changed(active: Array[Upgrade]) -> void:
 		names.append(upgrade.title)
 	_upgrades_label.text = "Upgrades: " + ", ".join(names) if not names.is_empty() else ""
 	_upgrades_label.visible = not names.is_empty()
+
+
+## Dungeon AI achievement popup (queued, never pauses the game).
+func announce(entry: Dictionary) -> void:
+	achievement_panel.announce(entry)
+
+
+func _on_boosts_changed() -> void:
+	var parts: Array[String] = []
+	var names := {PlayerUpgrades.BOOST_KNOCKBACK: "Knockback", PlayerUpgrades.BOOST_DAMAGE: "Damage"}
+	for kind: StringName in _player.upgrades.boosts:
+		var left := _player.upgrades.boost_rooms_left(kind)
+		var when := "last room" if left == 0 else "%d more room%s" % [left, "" if left == 1 else "s"]
+		parts.append("%s +%d%% (%s)" % [names.get(kind, String(kind)), roundi(_player.upgrades.boost(kind) * 100.0), when])
+	_boosts_label.text = "AI boosts: " + ", ".join(parts) if not parts.is_empty() else ""
+	_boosts_label.visible = not parts.is_empty()
 
 
 func _on_mode_changed(mode: PlayerCombat.Mode) -> void:

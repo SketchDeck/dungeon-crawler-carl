@@ -23,6 +23,7 @@ extends Node2D
 @onready var game_over: GameOverScreen = $GameOver
 @onready var floor_complete: FloorCompleteScreen = $FloorComplete
 @onready var upgrade_selection: UpgradeSelectionScreen = $UpgradeSelection
+@onready var dungeon_ai: DungeonAIManager = $DungeonAI
 
 ## Abilities unlocked since the floor started, shown on Floor Complete.
 var _new_unlocks: Array[StringName] = []
@@ -32,6 +33,7 @@ func _ready() -> void:
 	hud.bind_player(player)
 	hud.bind_rooms(room_manager)
 	room_manager.setup(player, room_slot, hud)
+	dungeon_ai.setup(player, room_manager, hud)
 	player.health.died.connect(_on_player_died)
 	game_over.restart_requested.connect(restart_floor)
 	room_manager.floor_exit_reached.connect(_on_floor_exit_reached)
@@ -70,6 +72,7 @@ func restart_floor() -> void:
 	GameManager.reset_lives()
 	player.potions.reset()
 	player.upgrades.clear()
+	dungeon_ai.reset()
 	_new_unlocks.clear()
 	player.respawn(player.global_position)
 	room_manager.start_floor(GameManager.floor_number)
@@ -101,6 +104,7 @@ func continue_to_next_floor() -> void:
 	GameManager.floor_number += 1
 	GameManager.reset_lives()
 	player.upgrades.clear()
+	dungeon_ai.reset()
 	_new_unlocks.clear()
 	player.respawn(player.global_position)
 	room_manager.start_floor(GameManager.floor_number)

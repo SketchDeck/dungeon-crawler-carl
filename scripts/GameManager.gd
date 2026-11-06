@@ -6,6 +6,9 @@ extends Node
 signal lives_changed(lives: int)
 signal floor_completed(floor_number: int)
 signal ability_unlocked(id: StringName)
+## Gameplay events the Dungeon AI listens to (emitted by every enemy).
+signal enemy_collided(enemy: EnemyBase, other: EnemyBase)
+signal enemy_died(enemy: EnemyBase)
 
 const MAX_LIVES := 3
 const EXPLOSIVE_KICK := &"explosive_kick"

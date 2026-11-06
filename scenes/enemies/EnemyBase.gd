@@ -9,6 +9,8 @@ signal engaged_changed(enemy: EnemyBase, is_engaged: bool)
 ## This enemy was knocked into `other` hard enough to hurt both.
 signal collided(enemy: EnemyBase, other: EnemyBase)
 
+## Name used in Dungeon AI announcements.
+@export var display_name := "Goblin"
 @export var max_health := 50.0
 @export var body_size := Vector2(26, 40)
 @export var gravity := 1500.0
@@ -142,6 +144,7 @@ func die(hit: Hit = null) -> void:
 	if should_drop_potion(rng.randf()):
 		drop_potion()
 	died.emit(self)
+	GameManager.enemy_died.emit(self)
 
 
 func should_drop_potion(roll: float) -> bool:
@@ -183,6 +186,7 @@ func _check_enemy_collisions() -> void:
 		Fx.text((global_position + other.global_position) * 0.5 + Vector2(0, -36), "BONK!", Color("#ffb347"), 18)
 		Fx.shake(0.3)
 		collided.emit(self, other)
+		GameManager.enemy_collided.emit(self, other)
 		take_hit(Hit.new(collision_self_damage, Vector2.ZERO, self, tags))
 		if is_dead:
 			return

@@ -119,6 +119,14 @@ func _run() -> void:
 	await _test("crates and cracked walls need strong hits", test_breakables)
 	await _test("kicked enemies damage enemies they hit, once", test_enemy_collision)
 	await _test("weak knockback causes no collision damage", test_weak_knockback_no_collision)
+	# Milestone 7: Dungeon AI.
+	await _test("real enemy collisions and deaths reach the Dungeon AI", test_ai_events)
+	await _test("collision achievement: announced once, knockback boost", test_ai_collision)
+	await _test("boosts last this room and the next three", test_ai_boost_duration)
+	await _test("environmental kill achievement: damage boost", test_ai_environment_kill)
+	await _test("untouchable room clear heals; getting hit spoils it", test_ai_untouchable)
+	await _test("announcements queue and never pause the game", test_ai_announcements)
+	await _test("boosts survive death; floor restart clears them", test_ai_boost_reset)
 	SaveManager.delete_save()
 	print("\n%d passed, %d failed" % [_passed, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
@@ -1977,3 +1985,153 @@ func test_weak_knockback_no_collision() -> void:
 	await frames(40)
 	check_eq(a.health, 38.0, "missile hit")
 	check_eq(b.health, 50.0, "no collision damage from a light hit")
+
+
+# --- Milestone 7: Dungeon AI -------------------------------------------------
+
+func ai_of(m: Node) -> DungeonAIManager:
+	return m.get("dungeon_ai")
+
+
+func test_ai_events() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var a := spawn_goblin(w, 40.0)
+	spawn_goblin(w, 140.0)
+	var collisions := [0]
+	var deaths: Array[EnemyBase] = []
+	var on_collide := func(_x: EnemyBase, _y: EnemyBase) -> void: collisions[0] += 1
+	var on_death := func(e: EnemyBase) -> void: deaths.append(e)
+	GameManager.enemy_collided.connect(on_collide)
+	GameManager.enemy_died.connect(on_death)
+	await frames(5)
+	var ck := p.combat.charged_kick
+	ck.press()
+	await frames(70)
+	ck.release()
+	await frames(60)
+	check_eq(collisions[0], 1, "collision reported once")
+	a.take_hit(Hit.new(999.0))
+	check_eq(deaths, [a] as Array[EnemyBase], "death reported")
+	GameManager.enemy_collided.disconnect(on_collide)
+	GameManager.enemy_died.disconnect(on_death)
+
+
+func test_ai_collision() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var ai := ai_of(m)
+	var hud: HUD = m.get("hud")
+	var room := rooms_of(m).load_room("F1-02")
+	await frames(2)
+	var g := room.required_enemies
+	GameManager.enemy_collided.emit(g[0], g[1])
+	check_eq(ai.history, [DungeonAIManager.COLLISION] as Array[StringName], "achievement awarded")
+	check(hud.achievement_panel.is_showing(), "announcement on screen")
+	var entry := hud.achievement_panel.current
+	check_eq(entry.get("title"), "YOU KICKED A GOBLIN INTO ANOTHER GOBLIN!", "title")
+	check(String(entry.get("description", "")).length() > 20, "has a description")
+	check(String(entry.get("reward", "")).contains("knockback"), "names the reward")
+	check_eq(p.combat.knockback_multiplier, 1.5, "+50% knockback")
+	check(not get_tree().paused, "game not paused")
+	GameManager.enemy_collided.emit(g[1], g[0])
+	check_eq(ai.history.size(), 1, "not repeated in the same encounter")
+	check(hud.achievement_panel.queue.is_empty(), "no duplicate announcement queued")
+
+
+func test_ai_boost_duration() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var rm := rooms_of(m)
+	var room := rm.load_room("F1-02")
+	await frames(2)
+	GameManager.enemy_collided.emit(room.required_enemies[0], room.required_enemies[1])
+	var kb := PlayerUpgrades.BOOST_KNOCKBACK
+	check_eq(p.upgrades.boost_rooms_left(kb), 3, "three more rooms")
+	rm.load_room("F1-03")
+	check_eq(p.upgrades.boost_rooms_left(kb), 2, "two left")
+	rm.load_room("F1-04")
+	rm.load_room("F1-05")
+	check_eq(p.upgrades.boost_rooms_left(kb), 0, "last room")
+	check_eq(p.combat.knockback_multiplier, 1.5, "still active in the third room")
+	rm.load_room("F1-U1")
+	check_eq(p.upgrades.boost_rooms_left(kb), -1, "expired")
+	check_eq(p.combat.knockback_multiplier, 1.0, "knockback back to normal")
+
+
+func test_ai_environment_kill() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var ai := ai_of(m)
+	var hud: HUD = m.get("hud")
+	var room := rooms_of(m).load_room("F1-05")
+	await frames(2)
+	var goblins := room.required_enemies.duplicate()
+	goblins[0].take_hit(Hit.new(999.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	check(not ai.history.has(DungeonAIManager.ENVIRONMENT_KILL), "a normal kill doesn't count")
+	# Drop a goblin into the real spike pit.
+	var g: EnemyBase = goblins[1]
+	g.ai_enabled = false
+	g.global_position = Vector2(21.5 * 32.0, 19.0 * 32.0 - 22.0)
+	g.velocity = Vector2.ZERO
+	await until(func() -> bool: return ai.history.has(DungeonAIManager.ENVIRONMENT_KILL), secs(3.0))
+	check(ai.history.has(DungeonAIManager.ENVIRONMENT_KILL), "spike kill awarded")
+	check(String(hud.achievement_panel.current.get("description", "")).contains("spikes"), "mentions the spikes")
+	check_eq(p.combat.kick_damage_multiplier, 1.25, "+25% kick damage")
+	check_eq(p.combat.magic_damage_multiplier, 1.25, "+25% magic damage")
+
+
+func test_ai_untouchable() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var ai := ai_of(m)
+	var rm := rooms_of(m)
+	p.health.take_damage(10.0)  # before the room: doesn't count
+	var room := rm.load_room("F1-02")
+	set_health(p, 50.0)
+	kill_required(room)
+	check(ai.history.has(DungeonAIManager.UNTOUCHABLE), "untouchable clear awarded")
+	check_eq(p.health.current, 75.0, "healed 25 HP")
+	var room2 := rm.load_room("F1-05")
+	p.health._invuln = 0.0
+	p.health.take_damage(5.0)
+	kill_required(room2)
+	check_eq(ai.history.count(DungeonAIManager.UNTOUCHABLE), 1, "taking a hit spoils it")
+	var safe := rm.load_room("F1-03")
+	check(safe != null and ai.history.count(DungeonAIManager.UNTOUCHABLE) == 1, "safe rooms don't award it")
+
+
+func test_ai_announcements() -> void:
+	var m := spawn_main()
+	var ai := ai_of(m)
+	var hud: HUD = m.get("hud")
+	var panel := hud.achievement_panel
+	await frames(2)
+	ai.award(&"test_a", {"title": "A", "description": "first", "reward": "none"})
+	ai.award(&"test_b", {"title": "B", "description": "second", "reward": "none"})
+	check_eq(panel.current.get("title"), "A", "first shown")
+	check_eq(panel.queue.size(), 1, "second waits its turn")
+	check(not get_tree().paused, "game keeps running")
+	await frames(secs(5.4))
+	check_eq(panel.current.get("title"), "B", "second shown after the first")
+	await frames(secs(5.4))
+	check(not panel.is_showing(), "panel hides when the queue is empty")
+
+
+func test_ai_boost_reset() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var ai := ai_of(m)
+	var room := rooms_of(m).load_room("F1-02")
+	await frames(2)
+	GameManager.enemy_collided.emit(room.required_enemies[0], room.required_enemies[1])
+	p.health.take_damage(999.0, true)
+	await frames(secs(1.7))
+	check_eq(rooms_of(m).current_room_id, "F1-02", "room restarted")
+	check_eq(p.upgrades.boost_rooms_left(PlayerUpgrades.BOOST_KNOCKBACK), 3, "boost kept, restart doesn't count as a room")
+	var fresh := rooms_of(m).current_room
+	GameManager.enemy_collided.emit(fresh.required_enemies[0], fresh.required_enemies[1])
+	check_eq(ai.history.size(), 2, "a restarted room is a new encounter")
+	m.call("restart_floor")
+	check(p.upgrades.boosts.is_empty(), "floor restart clears boosts")
+	check_eq(p.combat.knockback_multiplier, 1.0, "knockback back to normal")
