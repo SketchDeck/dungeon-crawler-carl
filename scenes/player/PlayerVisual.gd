@@ -1,6 +1,7 @@
 class_name PlayerVisual
 extends Node2D
-## Placeholder art: Carl (jacket + boxers) with Princess Donut on his shoulder.
+## Placeholder art: Carl (black leather vest, white boxers with red hearts) with
+## Princess Donut (a brown cat in a purple tiara) on his shoulder.
 ## Poses are derived from player state each frame (idle, run, jump, fall,
 ## dodge, kick, charge, cast, switch, hurt, dead). Both characters are always
 ## drawn; the active combat mode shows as a colored glow at Carl's feet, and
@@ -8,13 +9,16 @@ extends Node2D
 
 const SKIN := Color("#e8b48a")
 const HAIR := Color("#6b3d1f")
-const JACKET := Color("#6b4a2f")
-const BOXERS := Color("#3f6fd1")
-const HEARTS := Color("#ff7a9a")
+const VEST := Color("#1b1a1d")
+const VEST_SHINE := Color("#4a4650")
+const BOXERS := Color("#f4f2ee")
+const HEARTS := Color("#e0304a")
 const BOOTS := Color("#2e231c")
-const DONUT_FUR := Color("#f3e3c7")
-const DONUT_FACE := Color("#b8875a")
-const TIARA := Color("#ffd34d")
+const DONUT_FUR := Color("#8a5a34")
+const DONUT_FUR_DARK := Color("#5e3a1f")
+const DONUT_FACE := Color("#c49a6c")
+const TIARA := Color("#9b4dff")
+const TIARA_GEM := Color("#ffd0ff")
 const CHARGE := Color("#ff9a3c")
 const MAGIC := Color("#b46cff")
 
@@ -51,7 +55,10 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var combat := player.combat
 	var kick := combat.kick_combo
-	var power := combat.charged_kick
+	# The Explosive Kick reuses the power kick's poses.
+	var boom := combat.explosive_kick
+	var power: ChargedKick = boom if boom.is_active() else combat.charged_kick
+	var burst := combat.area_burst
 	var missile := combat.magic_missile
 	var blast := combat.charged_blast
 	var donut_mode := combat.mode == PlayerCombat.Mode.DONUT
@@ -104,18 +111,28 @@ func _draw() -> void:
 	_draw_leg(hip_back, foot_back)
 	_draw_leg(hip_front, foot_front, 7.0 if kick_extend > 0.0 else 6.0)
 
-	# Boxers with hearts.
+	# White boxers with red hearts.
 	var body_y := crouch
 	draw_rect(Rect2(-11, 2 + body_y, 22, 11), BOXERS)
-	draw_circle(Vector2(-5, 7 + body_y), 1.8, HEARTS)
-	draw_circle(Vector2(4, 9 + body_y), 1.8, HEARTS)
+	draw_rect(Rect2(-11, 2 + body_y, 22, 2), BOXERS.darkened(0.15))
+	draw_line(Vector2(0, 5 + body_y), Vector2(0, 12 + body_y), BOXERS.darkened(0.2), 1.0)
+	_draw_heart(Vector2(-6, 8 + body_y), 2.2)
+	_draw_heart(Vector2(4, 7 + body_y), 2.2)
+	_draw_heart(Vector2(-1, 11 + body_y), 1.8)
+	_draw_heart(Vector2(8, 11 + body_y), 1.8)
 
-	# Jacket torso and arm.
-	draw_rect(Rect2(-12, -20 + body_y, 24, 23), JACKET)
+	# Bare torso under an open black leather vest.
+	draw_rect(Rect2(-12, -20 + body_y, 24, 23), SKIN)
+	draw_rect(Rect2(-12, -20 + body_y, 15, 23), VEST)
+	draw_rect(Rect2(8, -20 + body_y, 4, 23), VEST)
+	draw_line(Vector2(-9, -18 + body_y), Vector2(-9, 1 + body_y), VEST_SHINE, 1.5)
+	draw_line(Vector2(3, -20 + body_y), Vector2(3, 3 + body_y), VEST_SHINE, 1.0)
+	# Bare arm (the vest is sleeveless).
 	var hand := Vector2(10, -2 + body_y)
 	if kick.is_active() or power.is_active():
 		hand = Vector2(-12, -10 + body_y)
-	draw_line(Vector2(6, -16 + body_y), hand, JACKET.darkened(0.2), 6.0)
+	draw_line(Vector2(6, -16 + body_y), hand, SKIN.darkened(0.08), 6.0)
+	draw_circle(Vector2(6, -16 + body_y), 3.5, VEST)
 	draw_circle(hand, 3.0, SKIN)
 
 	# Carl's head.
@@ -126,7 +143,8 @@ func _draw() -> void:
 	draw_rect(Rect2(head + Vector2(-2, 5), Vector2(10, 4)), HAIR.lightened(0.15))
 
 	# Donut leans forward and points a paw while casting.
-	var casting := missile.is_active() or blast.phase == ChargedBlast.Phase.CAST or blast.phase == ChargedBlast.Phase.RECOVERY
+	var casting := missile.is_active() or blast.phase == ChargedBlast.Phase.CAST or blast.phase == ChargedBlast.Phase.RECOVERY \
+		or combat.area_burst.is_active()
 	var donut_at := Vector2(-11, -24 + body_y)
 	if casting or blast.is_charging():
 		donut_at += Vector2(5, -2)
@@ -166,9 +184,23 @@ func _draw() -> void:
 	if power.is_charging():
 		var r := power.charge_ratio()
 		var pulse := 1.0 + 0.15 * sin(_t * 30.0) if r >= 1.0 else 1.0
-		var c := CHARGE.lerp(Color.WHITE, 0.6 if r >= 1.0 else 0.0)
+		var base := Color("#ff3a1a") if power == boom else CHARGE
+		var c := base.lerp(Color.WHITE, 0.6 if r >= 1.0 else 0.0)
 		draw_circle(Vector2(8, 22), (5.0 + r * 12.0) * pulse, Color(c, 0.35 + r * 0.3))
 		draw_arc(Vector2(0, 0), 34.0 + r * 8.0, -PI * 0.5, -PI * 0.5 + TAU * r, 32, Color(c, 0.8), 3.0)
+
+	# Explosive Kick: flickering sparks around the foot while charging.
+	if power == boom and boom.is_charging():
+		for i in 5:
+			var a := _t * 11.0 + i * TAU / 5.0
+			draw_circle(Vector2(8, 22) + Vector2(cos(a), sin(a)) * (10.0 + 6.0 * boom.charge_ratio()), 2.0, Color("#ffd34d"))
+
+	# Magic Burst: the blast radius shows while Donut gathers it.
+	if burst.phase == AreaBurst.Phase.CAST:
+		var k := burst.cast_ratio()
+		draw_circle(Vector2(0, -4), burst.radius, Color(MAGIC, 0.08 + 0.12 * k))
+		draw_arc(Vector2(0, -4), burst.radius, 0.0, TAU, 48, Color(MAGIC, 0.4 + 0.5 * k), 2.0)
+		draw_circle(Vector2(0, -4), burst.radius * k, Color(1, 0.85, 1, 0.15))
 
 	# Magic blast charge: a growing orb at Donut's paw plus a purple charge ring.
 	if blast.is_charging():
@@ -188,19 +220,38 @@ func _draw_leg(hip: Vector2, foot: Vector2, width := 6.0) -> void:
 	draw_rect(Rect2(foot + Vector2(-3, -3), Vector2(9, 6)), BOOTS)
 
 
-func _draw_donut(at: Vector2) -> void:
-	# Tail.
-	draw_line(at + Vector2(-5, 3), at + Vector2(-12, -4), DONUT_FUR.darkened(0.1), 4.0)
-	# Body and head.
-	draw_circle(at, 7.0, DONUT_FUR)
-	var head := at + Vector2(2, -10)
-	draw_colored_polygon(PackedVector2Array([head + Vector2(-6, -3), head + Vector2(-4, -11), head + Vector2(-1, -5)]), DONUT_FUR)
-	draw_colored_polygon(PackedVector2Array([head + Vector2(6, -3), head + Vector2(4, -11), head + Vector2(1, -5)]), DONUT_FUR)
-	draw_circle(head, 6.0, DONUT_FUR)
-	draw_circle(head + Vector2(1.5, 1.5), 3.0, DONUT_FACE)
-	draw_circle(head + Vector2(3, -1), 1.2, Color.BLACK)
-	# Tiara.
+func _draw_heart(center: Vector2, size: float) -> void:
+	draw_circle(center + Vector2(-size * 0.5, 0), size * 0.6, HEARTS)
+	draw_circle(center + Vector2(size * 0.5, 0), size * 0.6, HEARTS)
 	draw_colored_polygon(PackedVector2Array([
-		head + Vector2(-4, -5), head + Vector2(-3, -9), head + Vector2(-1, -6),
-		head + Vector2(0, -10), head + Vector2(1, -6), head + Vector2(3, -9), head + Vector2(4, -5),
-	]), TIARA)
+		center + Vector2(-size * 1.05, size * 0.15), center + Vector2(size * 1.05, size * 0.15),
+		center + Vector2(0, size * 1.3)]), HEARTS)
+
+
+func _draw_donut(at: Vector2) -> void:
+	# Big fluffy tail.
+	draw_line(at + Vector2(-5, 3), at + Vector2(-12, -4), DONUT_FUR_DARK, 5.0)
+	draw_circle(at + Vector2(-12, -5), 3.0, DONUT_FUR_DARK)
+	# Fluffy body.
+	draw_circle(at, 7.5, DONUT_FUR)
+	draw_circle(at + Vector2(-4, 2), 4.5, DONUT_FUR)
+	draw_circle(at + Vector2(3, 3), 4.0, DONUT_FUR_DARK.lerp(DONUT_FUR, 0.5))
+	var head := at + Vector2(2, -10)
+	# Ears with darker insides.
+	draw_colored_polygon(PackedVector2Array([head + Vector2(-6, -3), head + Vector2(-4, -11), head + Vector2(-1, -5)]), DONUT_FUR_DARK)
+	draw_colored_polygon(PackedVector2Array([head + Vector2(6, -3), head + Vector2(4, -11), head + Vector2(1, -5)]), DONUT_FUR_DARK)
+	# Round, flat-faced head with a fluffy ruff.
+	draw_circle(head + Vector2(0, 3), 6.5, DONUT_FUR_DARK.lerp(DONUT_FUR, 0.6))
+	draw_circle(head, 6.0, DONUT_FUR)
+	draw_circle(head + Vector2(1.5, 1.8), 3.0, DONUT_FACE)
+	draw_circle(head + Vector2(3, -1), 1.3, Color("#ffcf3a"))
+	draw_circle(head + Vector2(3.2, -1), 0.7, Color.BLACK)
+	draw_circle(head + Vector2(3.5, 1.5), 0.8, Color("#5a2a2a"))
+	# Purple tiara with a sparkling gem.
+	var tiara := PackedVector2Array([
+		head + Vector2(-4.5, -5), head + Vector2(-3.5, -9), head + Vector2(-1.5, -6.5),
+		head + Vector2(0, -11), head + Vector2(1.5, -6.5), head + Vector2(3.5, -9), head + Vector2(4.5, -5),
+	])
+	draw_colored_polygon(tiara, TIARA)
+	draw_polyline(tiara, TIARA.lightened(0.35), 1.0)
+	draw_circle(head + Vector2(0, -7), 1.3, TIARA_GEM)

@@ -71,6 +71,11 @@ F1-01 Entrance → F1-02 Combat → F1-03 Safe → F1-04 Challenge → F1-05 Com
   with two low platforms for dodging charges and shockwaves. The layout doc
   gives F1-08 no exits, so the floor ends at stairs (`X`) that open once the
   Goblin Brute is beaten.
+- Environmental objects are placeholder placements (the layout doc doesn't
+  define any): a potion crate in F1-03; spike pits in F1-05, F1-U2, F1-D2 and
+  F1-07; barrels in F1-05, F1-U2, F1-D2, F1-07 and the boss arena; a cracked
+  wall hiding a crate behind the entrance of F1-06 (which is now 40 tiles
+  wide to fit it). None of them block the way forward.
 
 - **Challenge rooms are the spec's Treasure rooms.** Each one is a trial or
   puzzle (platforming, hazard or combat challenge) that ends in the

@@ -34,6 +34,7 @@ var _t := 0.0
 @onready var _fade: ColorRect = %Fade
 @onready var _mode_label: Label = %ModeLabel
 @onready var _abilities: Control = %Abilities
+@onready var _upgrades_label: Label = %UpgradesLabel
 
 var _mode_pulse := 0.0
 
@@ -78,8 +79,18 @@ func bind_player(player: Player) -> void:
 	_ghost_value = _current
 	_abilities.set("player", player)
 	player.combat.mode_changed.connect(_on_mode_changed)
+	player.upgrades.changed.connect(_on_upgrades_changed)
+	_on_upgrades_changed(player.upgrades.active)
 	_on_mode_changed(player.combat.mode)
 	_mode_pulse = 0.0
+
+
+func _on_upgrades_changed(active: Array[Upgrade]) -> void:
+	var names: Array[String] = []
+	for upgrade in active:
+		names.append(upgrade.title)
+	_upgrades_label.text = "Upgrades: " + ", ".join(names) if not names.is_empty() else ""
+	_upgrades_label.visible = not names.is_empty()
 
 
 func _on_mode_changed(mode: PlayerCombat.Mode) -> void:

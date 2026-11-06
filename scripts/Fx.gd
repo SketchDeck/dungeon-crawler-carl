@@ -40,6 +40,15 @@ func slash(pos: Vector2, facing: int, radius: float, color: Color, duration := 0
 	_spawn(effect, pos)
 
 
+func explosion(pos: Vector2, radius: float, color := Color("#ff9a3c"), duration := 0.4) -> void:
+	var effect := ExplosionEffect.new()
+	effect.radius = radius
+	effect.color = color
+	effect.duration = duration
+	_spawn(effect, pos)
+	shake(clampf(radius / 250.0, 0.2, 0.6))
+
+
 func text(pos: Vector2, message: String, color := Color.WHITE, font_size := 16) -> void:
 	var effect := FloatingText.new()
 	effect.message = message

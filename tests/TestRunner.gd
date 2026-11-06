@@ -19,6 +19,10 @@ func _ready() -> void:
 
 func _run() -> void:
 	Fx.hitstop_enabled = false
+	# Never touch the real save file.
+	SaveManager.save_path = "user://test_save.json"
+	SaveManager.delete_save()
+	GameManager.reset_progress()
 	await _test("health clamps, invulnerability and death", test_health)
 	await _test("hurt invulnerability lasts 0.75s", test_hurt_invuln_duration)
 	await _test("kick combo deals 10/10/20", test_kick_combo_damage)
@@ -97,6 +101,25 @@ func _run() -> void:
 	await _test("boss room: fight, boss bar, victory, floor unlock", test_boss_room_flow)
 	await _test("dying in the boss fight resets the boss", test_boss_death_resets)
 	await _test("stairs open the Floor Complete screen; replay restarts", test_floor_complete)
+	# Milestone 6: specials, unlocks, upgrades, environment.
+	await _test("specials are locked until unlocked", test_specials_locked)
+	await _test("explosive kick explodes on impact", test_explosive_kick)
+	await _test("explosive kick sets off barrels", test_explosive_kick_barrel)
+	await _test("area magic burst hits all around", test_area_burst)
+	await _test("beating floors unlocks the specials", test_floor_unlocks)
+	await _test("unlocks persist in the save file", test_unlocks_persist)
+	await _test("missing or broken save files don't crash", test_bad_save_file)
+	await _test("debug option unlocks both specials", test_debug_unlock)
+	await _test("upgrades apply their effects and clear exactly", test_upgrade_effects)
+	await _test("upgrade rolls offer distinct choices", test_upgrade_roll)
+	await _test("treasure chest pauses for an upgrade choice", test_treasure_selection)
+	await _test("upgrades survive death but reset with the floor", test_upgrades_reset)
+	await _test("spikes hurt the player and kill enemies", test_spikes)
+	await _test("barrels explode, hurt both sides and chain", test_barrels)
+	await _test("crates and cracked walls need strong hits", test_breakables)
+	await _test("kicked enemies damage enemies they hit, once", test_enemy_collision)
+	await _test("weak knockback causes no collision damage", test_weak_knockback_no_collision)
+	SaveManager.delete_save()
 	print("\n%d passed, %d failed" % [_passed, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
@@ -904,7 +927,7 @@ func _cell(rows: PackedStringArray, r: int, c: int) -> String:
 
 
 func _blocks(ch: String, gates_open: bool) -> bool:
-	return ch == "#" or (ch == "G" and not gates_open)
+	return ch == "#" or ch == "W" or (ch == "G" and not gates_open)
 
 
 func _supports(ch: String, gates_open: bool) -> bool:
@@ -914,7 +937,7 @@ func _supports(ch: String, gates_open: bool) -> bool:
 ## Standing at (r, c): body occupies rows r and r-1, feet rest on row r+1.
 func _can_stand(rows: PackedStringArray, r: int, c: int, gates_open: bool) -> bool:
 	return not _blocks(_cell(rows, r, c), gates_open) and not _blocks(_cell(rows, r - 1, c), gates_open) \
-		and _supports(_cell(rows, r + 1, c), gates_open)
+		and _supports(_cell(rows, r + 1, c), gates_open) and _cell(rows, r, c) != "^"
 
 
 ## From a non-supported cell, fall straight down. Returns -1 if it falls out.
@@ -1622,3 +1645,335 @@ func test_floor_complete() -> void:
 	check_eq(GameManager.lives, 3, "3 lives")
 	check_eq(p.potions.count, 3, "potions reset to 3")
 	check(not rooms_of(m).room_states.has("F1-08"), "room progress reset")
+
+
+# --- Milestone 6: progression and environmental combat --------------------------
+
+const UP_KICK := preload("res://resources/upgrades/KickDamage.tres")
+const UP_MAGIC := preload("res://resources/upgrades/MagicDamage.tres")
+const UP_KNOCKBACK := preload("res://resources/upgrades/Knockback.tres")
+const UP_COOLDOWN := preload("res://resources/upgrades/Cooldown.tres")
+const UP_HEALTH := preload("res://resources/upgrades/MaxHealth.tres")
+const UP_SPEED := preload("res://resources/upgrades/MoveSpeed.tres")
+
+
+func test_specials_locked() -> void:
+	GameManager.reset_progress()
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(2)
+	check(not p.combat.press_special(), "explosive kick locked")
+	check(not p.combat.explosive_kick.is_active(), "nothing happened")
+	p.combat.request_switch()
+	check(not p.combat.press_special(), "magic burst locked")
+	check(not p.combat.area_burst.is_active(), "nothing happened")
+
+
+func test_explosive_kick() -> void:
+	GameManager.reset_progress()
+	GameManager.unlock_ability(GameManager.EXPLOSIVE_KICK)
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var direct := spawn_goblin(w, 40.0)
+	var near := spawn_goblin(w, 100.0)
+	var behind := spawn_goblin(w, -100.0)
+	await frames(5)
+	check(p.combat.press_special(), "explosive kick available")
+	p.combat.explosive_kick.release()
+	await frames(10)
+	check_eq(direct.health, 15.0, "kick (15) + explosion (20)")
+	check_eq(near.health, 30.0, "explosion hits nearby enemies (20)")
+	check_eq(behind.health, 50.0, "enemy behind Carl untouched")
+	check(near.velocity.x > 0.0 or near.global_position.x > 100.0, "pushed away from the blast")
+	check(p.combat.explosive_kick.cooldown_remaining > 3.0, "long cooldown started")
+	check(p.combat.charged_kick.is_ready(), "separate from the power kick's cooldown")
+
+
+func test_explosive_kick_barrel() -> void:
+	GameManager.unlock_ability(GameManager.EXPLOSIVE_KICK)
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var barrel := ExplosiveBarrel.new()
+	barrel.position = Vector2(130, 0)
+	w.add_child(barrel)
+	var g := spawn_goblin(w, 210.0)
+	await frames(5)
+	p.combat.press_special()
+	p.combat.explosive_kick.release()
+	await frames(8)
+	check(not is_instance_valid(barrel) or barrel.lit, "blast lit the barrel")
+	await frames(15)
+	check(not is_instance_valid(barrel), "barrel exploded")
+	check_eq(g.health, 20.0, "barrel blast deals 30 to enemies")
+
+
+func test_area_burst() -> void:
+	GameManager.unlock_ability(GameManager.AREA_BURST)
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var right := spawn_goblin(w, 100.0)
+	var left := spawn_goblin(w, -100.0)
+	var far := spawn_goblin(w, 300.0)
+	await frames(5)
+	p.combat.request_switch()
+	check(p.combat.press_special(), "magic burst available")
+	await frames(15)
+	check_eq(right.health, 28.0, "burst deals 22 (right)")
+	check_eq(left.health, 28.0, "burst deals 22 (left)")
+	check_eq(far.health, 50.0, "outside the radius untouched")
+	check(right.velocity.x > 0.0 and left.velocity.x < 0.0, "pushed outward both ways")
+	check(p.combat.area_burst.cooldown_remaining > 5.0, "6s cooldown")
+	p.combat.request_switch()
+	check(not p.combat.press_special() or p.combat.explosive_kick.is_unlocked(), "Carl's special uses its own unlock")
+
+
+func test_floor_unlocks() -> void:
+	GameManager.reset_progress()
+	var got: Array[StringName] = []
+	var on_unlock := func(id: StringName) -> void: got.append(id)
+	GameManager.ability_unlocked.connect(on_unlock)
+	GameManager.complete_floor(1)
+	check(GameManager.is_unlocked(GameManager.EXPLOSIVE_KICK), "Floor 1 unlocks Explosive Kick")
+	check(not GameManager.is_unlocked(GameManager.AREA_BURST), "Magic Burst still locked")
+	GameManager.complete_floor(2)
+	check(GameManager.is_unlocked(GameManager.AREA_BURST), "Floor 2 unlocks Magic Burst")
+	GameManager.complete_floor(1)
+	check_eq(got.size(), 2, "each unlock announced once")
+	GameManager.ability_unlocked.disconnect(on_unlock)
+
+
+func test_unlocks_persist() -> void:
+	GameManager.reset_progress()
+	SaveManager.delete_save()
+	GameManager.complete_floor(1)
+	check(SaveManager.has_save(), "save file written")
+	# A new session: forget everything, then load from disk.
+	GameManager.reset_progress()
+	check(not GameManager.is_unlocked(GameManager.EXPLOSIVE_KICK), "forgotten in memory")
+	GameManager.load_progress()
+	check(GameManager.is_unlocked(GameManager.EXPLOSIVE_KICK), "unlock loaded from the save")
+	check(GameManager.is_floor_completed(1), "floor completion loaded")
+	check_eq(GameManager.highest_unlocked_floor, 2, "floor 2 unlocked after loading")
+
+
+func test_bad_save_file() -> void:
+	SaveManager.delete_save()
+	GameManager.load_progress()
+	check(GameManager.unlocked_abilities.is_empty(), "no save: defaults")
+	var f := FileAccess.open(SaveManager.save_path, FileAccess.WRITE)
+	f.store_string("{ this is not json")
+	f.close()
+	GameManager.load_progress()
+	check_eq(GameManager.highest_unlocked_floor, 1, "broken save: defaults")
+	f = FileAccess.open(SaveManager.save_path, FileAccess.WRITE)
+	f.store_string('{"completed_floors": "nope", "highest_unlocked_floor": "x", "unlocked_abilities": [1, "explosive_kick", "fly"]}')
+	f.close()
+	GameManager.load_progress()
+	check_eq(GameManager.completed_floors.size(), 0, "wrong types ignored")
+	check_eq(GameManager.unlocked_abilities, [GameManager.EXPLOSIVE_KICK] as Array[StringName], "only known abilities kept")
+	SaveManager.delete_save()
+	GameManager.reset_progress()
+
+
+func test_debug_unlock() -> void:
+	GameManager.reset_progress()
+	GameManager.debug_unlock_all()
+	check(GameManager.is_unlocked(GameManager.EXPLOSIVE_KICK) and GameManager.is_unlocked(GameManager.AREA_BURST), "both unlocked")
+
+
+func test_upgrade_effects() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 40.0)
+	await frames(5)
+	var up := p.upgrades
+	up.apply(UP_KICK)
+	check_eq(p.combat.kick_damage_multiplier, 1.25, "kick damage +25%")
+	p.combat.kick_combo.press()
+	await frames(10)
+	check_eq(g.health, 37.5, "first kick deals 12.5")
+	up.apply(UP_MAGIC)
+	check_eq(p.combat.magic_missile.damage_value(), 15.0, "missile deals 15")
+	up.apply(UP_KNOCKBACK)
+	check_eq(p.combat.knockback_multiplier, 1.3, "knockback +30%")
+	up.apply(UP_COOLDOWN)
+	check_eq(p.combat.cooldown_multiplier, 0.8, "cooldowns -20%")
+	up.apply(UP_SPEED)
+	check_eq(p.move_speed_multiplier, 1.12, "speed +12%")
+	set_health(p, 90.0)
+	up.apply(UP_HEALTH)
+	check_eq(p.health.max_health, 120.0, "max health 120")
+	check_eq(p.health.current, 110.0, "healed by 20")
+	up.apply(UP_HEALTH)
+	check_eq(p.health.max_health, 140.0, "upgrades stack")
+	up.clear()
+	check_eq(p.health.max_health, 100.0, "max health back to 100")
+	check_eq(p.health.current, 100.0, "health capped at the new max")
+	check_eq(p.combat.kick_damage_multiplier, 1.0, "kick damage reset")
+	check_eq(p.combat.cooldown_multiplier, 1.0, "cooldowns reset")
+	check_eq(p.move_speed_multiplier, 1.0, "speed reset")
+	for i in 5:
+		up.apply(UP_COOLDOWN)
+	check_eq(p.combat.cooldown_multiplier, PlayerUpgrades.MIN_COOLDOWN_MULTIPLIER, "cooldowns never below 40%")
+
+
+func test_upgrade_roll() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(2)
+	for i in 20:
+		var choice := p.upgrades.roll(3)
+		check_eq(choice.size(), 3, "three choices")
+		check(choice[0] != choice[1] and choice[1] != choice[2] and choice[0] != choice[2], "all different")
+	check_eq(p.upgrades.roll(10).size(), 6, "never more than the six upgrades")
+	for u in PlayerUpgrades.POOL:
+		check(u.title != "" and u.description() != "", "%s has a name and description" % u.title)
+
+
+func test_treasure_selection() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var screen: UpgradeSelectionScreen = m.get("upgrade_selection")
+	var room := rooms_of(m).load_room("F1-04")
+	await frames(2)
+	check(room.chest.interact(), "chest opens")
+	check(screen.visible, "upgrade choice shown")
+	check(get_tree().paused, "gameplay paused")
+	var cards := screen.cards()
+	check_eq(cards.size(), 3, "three upgrades offered")
+	var picked := screen.choices[1]
+	cards[1].pressed.emit()
+	check(not screen.visible, "screen closed")
+	check(not get_tree().paused, "gameplay resumed")
+	check_eq(p.upgrades.active, [picked] as Array[Upgrade], "picked upgrade applied")
+	check(not room.chest.interact(), "chest only gives one reward")
+
+
+func test_upgrades_reset() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	p.upgrades.apply(UP_KICK)
+	p.health.take_damage(999.0, true)
+	await frames(secs(1.7))
+	check_eq(GameManager.lives, 2, "lost a life")
+	check_eq(p.upgrades.active.size(), 1, "upgrade kept after death")
+	m.call("restart_floor")
+	check_eq(p.upgrades.active.size(), 0, "floor restart clears upgrades")
+	check_eq(p.combat.kick_damage_multiplier, 1.0, "effect removed")
+
+
+func test_spikes() -> void:
+	var w := world()
+	var spikes := SpikeTrap.new()
+	spikes.position = Vector2(100, -32)
+	spikes.size = Vector2(64, 32)
+	w.add_child(spikes)
+	var p := spawn_player(w, 132.0)
+	await frames(3)
+	check_eq(p.health.current, 85.0, "spikes deal 15")
+	check(p.velocity.y < 0.0 or p.global_position.y < -30.0, "bounced up")
+	var g := spawn_goblin(w, -300.0)
+	var g2 := spawn_goblin(w, 132.0)
+	var killer: Array[Hit] = []
+	g2.died.connect(func(e: EnemyBase) -> void: killer.append(e.last_hit))
+	await frames(2)
+	check(g2.health < 50.0, "enemies take spike damage")
+	await frames(secs(1.5))
+	check_eq(killer.size(), 1, "spikes kill enemies")
+	check(not killer.is_empty() and killer[0].has_tag("hazard"), "kill credited to the hazard")
+	check_eq(g.health, 50.0, "enemies off the spikes are fine")
+
+
+func test_barrels() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b1 := ExplosiveBarrel.new()
+	b1.position = Vector2(150, 0)
+	w.add_child(b1)
+	var b2 := ExplosiveBarrel.new()
+	b2.position = Vector2(230, 0)
+	w.add_child(b2)
+	var g := spawn_goblin(w, 330.0)
+	var bystander := spawn_player(w, 90.0)
+	await frames(3)
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(40)
+	check(not is_instance_valid(b1), "barrel hit by a bolt exploded")
+	check(not is_instance_valid(b2), "second barrel chained")
+	check_eq(g.health, 20.0, "enemy caught by the chained blast (30)")
+	check_eq(bystander.health.current, 80.0, "player in the blast takes 20")
+	check_eq(p.health.current, 100.0, "player outside the blast unhurt")
+
+
+func test_breakables() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var crate := Breakable.new()
+	crate.position = Vector2(30, -28)
+	w.add_child(crate)
+	await frames(3)
+	p.combat.kick_combo.press()
+	await frames(20)
+	check(not crate.is_broken, "a light kick doesn't break it")
+	p.combat.kick_combo.press()
+	await frames(20)
+	p.combat.kick_combo.press()
+	await frames(10)
+	check(not is_instance_valid(crate) or crate.is_broken, "combo finisher breaks it")
+	await frames(3)
+	check_eq(_count_potions(w), 1, "crate dropped a potion")
+
+	var w2 := world()
+	w2.position = Vector2(0, 2000)
+	var wall := Breakable.new()
+	wall.kind = Breakable.Kind.WALL
+	wall.size = Vector2(32, 96)
+	wall.position = Vector2(100, -96)
+	w2.add_child(wall)
+	var p2 := spawn_player(w2, 0.0)
+	await frames(3)
+	check(wall.collision_layer & HitQuery.LAYER_WORLD, "cracked wall is solid")
+	p2.combat.request_switch()
+	p2.combat.magic_missile.press()
+	await frames(20)
+	check(not wall.is_broken, "missile can't break it")
+	var cb := p2.combat.charged_blast
+	await frames(10)
+	cb.press()
+	await frames(70)
+	cb.release()
+	await frames(20)
+	check(not is_instance_valid(wall) or wall.is_broken, "full charged blast breaks it")
+
+
+func test_enemy_collision() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var a := spawn_goblin(w, 40.0)
+	var b := spawn_goblin(w, 140.0)
+	var hits := [0]
+	a.collided.connect(func(_x: EnemyBase, _y: EnemyBase) -> void: hits[0] += 1)
+	await frames(5)
+	var ck := p.combat.charged_kick
+	ck.press()
+	await frames(70)
+	ck.release()
+	await frames(60)
+	check_eq(hits[0], 1, "one collision")
+	check_eq(b.health, 35.0, "hit enemy takes 15 once")
+	check_eq(a.health, 7.0, "thrown enemy takes 35 + 8")
+	check(b.last_hit.has_tag("collision"), "tagged as a collision")
+
+
+func test_weak_knockback_no_collision() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var a := spawn_goblin(w, 100.0)
+	var b := spawn_goblin(w, 130.0)
+	await frames(5)
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(40)
+	check_eq(a.health, 38.0, "missile hit")
+	check_eq(b.health, 50.0, "no collision damage from a light hit")

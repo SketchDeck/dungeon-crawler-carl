@@ -1,7 +1,8 @@
 class_name PlayerCombat
 extends Node
 ## Routes attack input to the active combat mode's abilities and resolves
-## their hits. Carl mode kicks; Donut mode casts magic. Switching is instant,
+## their hits. Carl mode kicks; Donut mode casts magic. The special button (L)
+## uses the active mode's unlockable special: Explosive Kick or Magic Burst. Switching is instant,
 ## except during an attack's non-interruptible windup, where it is queued
 ## until the attack fires. Switching never touches movement, position, health
 ## or cooldowns.
@@ -38,6 +39,10 @@ var player: Player
 @onready var charged_kick: ChargedKick = $ChargedKick
 @onready var magic_missile: MagicMissile = $MagicMissile
 @onready var charged_blast: ChargedBlast = $ChargedBlast
+@onready var explosive_kick: ExplosiveKick = $ExplosiveKick
+@onready var area_burst: AreaBurst = $AreaBurst
+
+var _locked_notice := 0.0
 
 
 func _ready() -> void:
@@ -62,6 +67,10 @@ func charged_ability() -> Ability:
 	return charged_kick if mode == Mode.CARL else charged_blast
 
 
+func special_ability() -> Ability:
+	return explosive_kick if mode == Mode.CARL else area_burst
+
+
 static func mode_name(m: Mode) -> String:
 	return "CARL" if m == Mode.CARL else "DONUT"
 
@@ -72,6 +81,7 @@ static func mode_color(m: Mode) -> Color:
 
 func _physics_process(delta: float) -> void:
 	time_since_switch += delta
+	_locked_notice = maxf(_locked_notice - delta, 0.0)
 	if player.health.is_dead:
 		interrupt()
 		switch_queued = false
@@ -86,12 +96,31 @@ func _physics_process(delta: float) -> void:
 		return
 	var basic := basic_ability()
 	var charged := charged_ability()
-	if Input.is_action_just_pressed("basic_attack") and not charged.is_active():
+	var special := special_ability()
+	if Input.is_action_just_pressed("basic_attack") and not charged.is_active() and not special.is_active():
 		basic.press()
-	if Input.is_action_just_pressed("charged_attack") and not basic.is_active():
+	if Input.is_action_just_pressed("charged_attack") and not basic.is_active() and not special.is_active():
 		charged.press()
+	if Input.is_action_just_pressed("special_attack") and not basic.is_active() and not charged.is_active():
+		press_special()
 	if charged.is_charging() and not Input.is_action_pressed("charged_attack"):
 		charged.release()
+	if special.is_charging() and not Input.is_action_pressed("special_attack"):
+		special.release()
+
+
+## Uses the active mode's special if it's unlocked. Returns false when locked.
+func press_special() -> bool:
+	var special := special_ability()
+	if not special.is_unlocked():
+		if _locked_notice <= 0.0:
+			_locked_notice = 0.8
+			var how := "beat Floor 1" if special == explosive_kick else "beat Floor 2"
+			Fx.text(player.global_position + Vector2(0, -70), "%s is locked (%s)" % [special.display_name, how],
+				Color(1, 1, 1, 0.85), 13)
+		return false
+	special.press()
+	return true
 
 
 ## Switches between Carl and Donut. Instant unless an attack is mid-windup, in

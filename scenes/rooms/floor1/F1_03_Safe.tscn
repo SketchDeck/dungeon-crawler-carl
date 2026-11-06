@@ -10,7 +10,7 @@ room_type = 2
 trial = 0
 trial_hint = ""
 exits = PackedStringArray("F1-04")
-signs = PackedStringArray("Safe room. Out of combat, your health regenerates on its own.", "H drinks a health potion (+30 HP). Enemies sometimes drop more. The fountain heals you fully, once.")
+signs = PackedStringArray("Safe room. Out of combat, your health regenerates on its own.", "H drinks a health potion (+30 HP). Enemies sometimes drop more. The fountain heals you fully, once.", "Crates only break under strong hits: the third kick of a combo, a power kick or a charged blast. This one holds a potion.")
 layout = "##################################
 #................................#
 #................................#
@@ -28,6 +28,6 @@ layout = "##################################
 #................................#
 #................................#
 #................................#
-#E...i..........F.....i.........1#
+#E...i..........F.....i...i..b..1#
 ##################################
 ##################################"

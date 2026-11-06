@@ -12,6 +12,9 @@
 [ext_resource type="Script" path="res://scenes/player/HealthRegen.gd" id="10_regen"]
 [ext_resource type="Script" path="res://scripts/abilities/MagicMissile.gd" id="11_missile"]
 [ext_resource type="Script" path="res://scripts/abilities/ChargedBlast.gd" id="12_blast"]
+[ext_resource type="Script" path="res://scripts/abilities/ExplosiveKick.gd" id="13_boom"]
+[ext_resource type="Script" path="res://scripts/abilities/AreaBurst.gd" id="14_burst"]
+[ext_resource type="Script" path="res://scenes/player/PlayerUpgrades.gd" id="15_upgrades"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(24, 56)
@@ -54,6 +57,15 @@ script = ExtResource("11_missile")
 
 [node name="ChargedBlast" type="Node" parent="Combat"]
 script = ExtResource("12_blast")
+
+[node name="ExplosiveKick" type="Node" parent="Combat"]
+script = ExtResource("13_boom")
+
+[node name="AreaBurst" type="Node" parent="Combat"]
+script = ExtResource("14_burst")
+
+[node name="Upgrades" type="Node" parent="."]
+script = ExtResource("15_upgrades")
 
 [node name="Camera" type="Camera2D" parent="."]
 position_smoothing_enabled = true

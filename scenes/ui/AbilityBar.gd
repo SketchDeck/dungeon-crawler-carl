@@ -1,9 +1,10 @@
 extends Control
-## Ability slots with cooldown sweeps: Carl's two kicks, Donut's two spells and
-## the dodge. The inactive mode's slots are dimmed but keep counting down, so
-## you can see cooldowns carry over when you switch.
+## Ability slots with cooldown sweeps: Carl's kicks, Donut's spells, each
+## mode's special (shown LOCKED until unlocked) and the dodge. The inactive
+## mode's slots are dimmed but keep counting down, so you can see cooldowns
+## carry over when you switch.
 
-const SLOT := Vector2(52, 34)
+const SLOT := Vector2(50, 34)
 const GAP := 4.0
 const GROUP_GAP := 12.0
 
@@ -21,8 +22,10 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	var x := 0.0
 	var groups := [
-		[PlayerCombat.Mode.CARL, [[combat.kick_combo, "Kick", "J"], [combat.charged_kick, "Power", "K"]]],
-		[PlayerCombat.Mode.DONUT, [[combat.magic_missile, "Missile", "J"], [combat.charged_blast, "Blast", "K"]]],
+		[PlayerCombat.Mode.CARL, [[combat.kick_combo, "Kick", "J"], [combat.charged_kick, "Power", "K"],
+			[combat.explosive_kick, "Boom", "L"]]],
+		[PlayerCombat.Mode.DONUT, [[combat.magic_missile, "Missile", "J"], [combat.charged_blast, "Blast", "K"],
+			[combat.area_burst, "Burst", "L"]]],
 	]
 	for group: Array in groups:
 		var m: PlayerCombat.Mode = group[0]
@@ -30,8 +33,9 @@ func _draw() -> void:
 		var color := PlayerCombat.mode_color(m)
 		for slot: Array in group[1]:
 			var ability: Ability = slot[0]
-			_draw_slot(font, Rect2(Vector2(x, 0), SLOT), slot[1], slot[2], color, active,
-				ability.cooldown_ratio(), ability.charge_ratio() if ability.is_charging() else -1.0)
+			var unlocked := ability.is_unlocked()
+			_draw_slot(font, Rect2(Vector2(x, 0), SLOT), slot[1], slot[2] if unlocked else "LOCKED", color,
+				active and unlocked, ability.cooldown_ratio(), ability.charge_ratio() if ability.is_charging() else -1.0)
 			x += SLOT.x + GAP
 		x += GROUP_GAP - GAP
 	_draw_slot(font, Rect2(Vector2(x, 0), SLOT), "Dodge", "Shift", Color("#9fc4ff"), true,

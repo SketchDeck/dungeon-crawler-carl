@@ -11,6 +11,8 @@ signal room_entered(room: RoomBase)
 signal floor_started(floor_number: int)
 ## The player took the stairs out of the beaten boss room.
 signal floor_exit_reached(floor_number: int)
+## A treasure chest was opened: time to pick an upgrade.
+signal treasure_opened(room: RoomBase)
 
 @export var transition_fade := 0.18
 ## Damage for falling out of the bottom of a room; the player returns to the entrance.
@@ -89,6 +91,7 @@ func load_room(room_id: String) -> RoomBase:
 	room.state_changed.connect(_on_room_state_changed.bind(room_id))
 	room.boss_defeated.connect(_on_boss_defeated)
 	room.floor_exit_requested.connect(_on_floor_exit)
+	room.reward_claimed.connect(func() -> void: treasure_opened.emit(room))
 	current_room = room
 	current_room_id = room_id
 

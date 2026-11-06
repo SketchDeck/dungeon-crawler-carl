@@ -21,6 +21,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 [autoload]
 
 Fx="*res://scripts/Fx.gd"
+SaveManager="*res://scripts/SaveManager.gd"
 GameManager="*res://scripts/GameManager.gd"
 
 [display]

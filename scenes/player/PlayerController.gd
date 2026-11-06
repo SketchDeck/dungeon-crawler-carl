@@ -52,6 +52,7 @@ var _hurt_t := 0.0
 @onready var combat_state: CombatStateManager = $CombatState
 @onready var regen: HealthRegen = $Regen
 @onready var combat: PlayerCombat = $Combat
+@onready var upgrades: PlayerUpgrades = $Upgrades
 @onready var visual: PlayerVisual = $Visual
 @onready var camera: GameCamera = $Camera
 

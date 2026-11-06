@@ -9,6 +9,8 @@ extends Node
 ## Which combat mode uses this ability.
 @export var mode := PlayerCombat.Mode.CARL
 @export var cooldown := 0.3
+## Permanent unlock this ability needs (see GameManager); empty = always available.
+@export var unlock_id := &""
 
 var cooldown_remaining := 0.0
 var player: Player
@@ -24,6 +26,10 @@ func _physics_process(delta: float) -> void:
 	if cooldown_remaining > 0.0:
 		cooldown_remaining = maxf(cooldown_remaining - delta, 0.0)
 	tick(delta)
+
+
+func is_unlocked() -> bool:
+	return unlock_id == &"" or GameManager.is_unlocked(unlock_id)
 
 
 func is_ready() -> bool:

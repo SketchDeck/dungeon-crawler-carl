@@ -10,6 +10,9 @@ extends Node2D
 ##   g  Goblin                 C  reward chest       F  healing fountain
 ##   S  trial switch           i  sign (texts from `signs`, in reading order)
 ##   B  boss spawn (boss rooms)    X  stairs to the next floor (open once the boss is beaten)
+##   ^  spikes (put them in a 1-tile-deep pit)
+##   x  explosive barrel       b  breakable crate (holds a potion)
+##   W  cracked wall (solid; strong attacks break it to open a path)
 ##
 ## Entities sit on the bottom edge of their tile. The room manager sets
 ## `state` (persistent progress such as "cleared") before adding the room,
@@ -241,6 +244,17 @@ func _build_from_layout() -> void:
 		_add_block(rect, false)
 	for rect in _merge_tiles(rows, "="):
 		_add_block(rect, true, Vector2(0, 0), 12.0)
+	for rect in _merge_tiles(rows, "^"):
+		var spikes := SpikeTrap.new()
+		spikes.position = Vector2(rect.position * TILE)
+		spikes.size = Vector2(rect.size * TILE)
+		_objects.add_child(spikes)
+	for rect in _merge_tiles(rows, "W"):
+		var wall := Breakable.new()
+		wall.kind = Breakable.Kind.WALL
+		wall.position = Vector2(rect.position * TILE)
+		wall.size = Vector2(rect.size * TILE)
+		_terrain.add_child(wall)
 	var gate_rects := _merge_tiles(rows, "G")
 	if not is_trial_done():
 		for rect in gate_rects:
@@ -293,6 +307,15 @@ func _build_from_layout() -> void:
 						boss.position = foot - Vector2(0, boss.body_size.y * 0.5)
 						boss.died.connect(_on_boss_died)
 						_enemies.add_child(boss)
+				"x":
+					var barrel := ExplosiveBarrel.new()
+					barrel.position = foot
+					_objects.add_child(barrel)
+				"b":
+					var crate := Breakable.new()
+					crate.kind = Breakable.Kind.CRATE
+					crate.position = foot - crate.size * Vector2(0.5, 1.0)
+					_objects.add_child(crate)
 				"X":
 					floor_exit = FloorExit.new()
 					floor_exit.position = foot

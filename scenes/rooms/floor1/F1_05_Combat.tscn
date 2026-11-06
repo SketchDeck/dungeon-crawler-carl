@@ -10,7 +10,7 @@ room_type = 1
 trial = 0
 trial_hint = ""
 exits = PackedStringArray("F1-U1", "F1-D1")
-signs = PackedStringArray("Two paths ahead: the high road and the low road. They meet again later.")
+signs = PackedStringArray("Two paths ahead: the high road and the low road. They meet again later.", "Spikes hurt anything that touches them, so kick goblins in. Barrels explode when hit: stand back. Kick goblins into each other, too.")
 layout = "################################################
 #..............................................#
 #..............................................#
@@ -28,6 +28,6 @@ layout = "################################################
 #..............................................#
 #..........................=====...............#
 #..............................................#
-#E..i...........g.........g.........g.........2#
-################################################
+#E..i...i.......g.........g....x....g.........2#
+####################^^^#########################
 ################################################"

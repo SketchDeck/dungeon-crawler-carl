@@ -6,6 +6,8 @@ extends CharacterBody2D
 signal damaged(enemy: EnemyBase, amount: float)
 signal died(enemy: EnemyBase)
 signal engaged_changed(enemy: EnemyBase, is_engaged: bool)
+## This enemy was knocked into `other` hard enough to hurt both.
+signal collided(enemy: EnemyBase, other: EnemyBase)
 
 @export var max_health := 50.0
 @export var body_size := Vector2(26, 40)
@@ -18,6 +20,12 @@ signal engaged_changed(enemy: EnemyBase, is_engaged: bool)
 @export var knockback_friction := 1600.0
 ## While armored (e.g. mid-attack), hits below this damage don't interrupt.
 @export var stagger_threshold := 15.0
+@export_group("Enemy collisions")
+## Knocked-back enemies moving at least this fast damage enemies they hit.
+@export var collision_min_speed := 350.0
+## Damage to the enemy that gets hit, and to the one that was thrown.
+@export var collision_damage := 15.0
+@export var collision_self_damage := 8.0
 @export_group("Drops")
 @export_range(0.0, 1.0) var potion_drop_chance := 0.2
 @export_group("")
@@ -27,6 +35,8 @@ signal engaged_changed(enemy: EnemyBase, is_engaged: bool)
 var health := 0.0
 var is_dead := false
 var is_engaged := false
+## The most recent hit taken (e.g. to credit a kill to spikes or a barrel).
+var last_hit: Hit
 var in_knockback := false
 var facing := -1
 
@@ -34,6 +44,8 @@ var _knockback_t := 0.0
 var _flash_t := 0.0
 var _death_t := 0.0
 var _player: Player
+## Enemies already hit during the current knockback (no repeat damage).
+var _collided := {}
 var rng := RandomNumberGenerator.new()
 
 const DEATH_DURATION := 0.7
@@ -68,6 +80,8 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if in_knockback:
+		if absf(velocity.x) >= collision_min_speed:
+			_check_enemy_collisions()
 		_knockback_t -= delta
 		if is_on_floor():
 			velocity.x = move_toward(velocity.x, 0.0, knockback_friction * delta)
@@ -87,6 +101,7 @@ func take_hit(hit: Hit) -> void:
 	if is_dead:
 		return
 	var amount := maxf(hit.damage, 0.0)
+	last_hit = hit
 	health = maxf(health - amount, 0.0)
 	_flash_t = 0.1
 	damaged.emit(self, amount)
@@ -107,6 +122,7 @@ func apply_knockback(knockback: Vector2) -> void:
 		return
 	velocity = knockback * knockback_multiplier
 	in_knockback = true
+	_collided.clear()
 	_knockback_t = knockback_min_time
 	_on_interrupted()
 
@@ -149,6 +165,27 @@ func set_engaged(value: bool) -> void:
 	var player := get_player()
 	if player:
 		player.combat_state.set_enemy_engaged(self, value)
+
+
+func _check_enemy_collisions() -> void:
+	var dir := signf(velocity.x)
+	for body in HitQuery.box(self, global_position + Vector2(dir * 4.0, 0), body_size + Vector2(8, 0), HitQuery.LAYER_ENEMIES):
+		var other := body as EnemyBase
+		if other == null or other == self or other.is_dead or _collided.has(other.get_instance_id()):
+			continue
+		_collided[other.get_instance_id()] = true
+		var speed := absf(velocity.x)
+		var tags := PackedStringArray(["collision"])
+		other.take_hit(Hit.new(collision_damage, Vector2(dir * speed * 0.6, -220), self, tags))
+		# The thrown enemy can't bounce straight back into the one it hit.
+		other._collided[get_instance_id()] = true
+		velocity.x *= 0.5
+		Fx.text((global_position + other.global_position) * 0.5 + Vector2(0, -36), "BONK!", Color("#ffb347"), 18)
+		Fx.shake(0.3)
+		collided.emit(self, other)
+		take_hit(Hit.new(collision_self_damage, Vector2.ZERO, self, tags))
+		if is_dead:
+			return
 
 
 # --- Helpers for subclasses -------------------------------------------------

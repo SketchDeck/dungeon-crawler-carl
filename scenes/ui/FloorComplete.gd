@@ -18,13 +18,16 @@ func _ready() -> void:
 	_replay.pressed.connect(_close.bind(replay_requested))
 
 
-func show_screen(floor_number: int, lives: int, potions: int) -> void:
+func show_screen(floor_number: int, lives: int, potions: int, unlocks: Array[StringName] = []) -> void:
 	var has_next := FloorData.has_floor(floor_number + 1)
 	_title.text = "%s COMPLETE" % FloorData.floor_name(floor_number).to_upper()
 	var lines := [
 		"The Goblin Brute is down. The crowd goes wild.",
 		"Lives left: %d   ·   Potions: %d" % [lives, potions],
 	]
+	for id in unlocks:
+		lines.append("NEW ABILITY UNLOCKED: %s" % GameManager.ABILITY_NAMES.get(id, String(id)))
+	lines.append("Temporary upgrades end with the floor.")
 	if has_next:
 		lines.append("Continuing restores your health and lives. Unused potions come with you.")
 	else:

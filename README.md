@@ -4,9 +4,9 @@ A 2D action platformer prototype in Godot 4 (GDScript). You play Carl, with
 Princess Donut riding on his shoulder, and kick your way through dungeon rooms.
 No logins, database, backend, or JavaScript packages are required.
 
-**Status: Milestone 5 (first boss).** Floor 1 is playable from the entrance
-to the Goblin Brute. The game starts at the Floor 1
-entrance. Floor 1 has 14 rooms connected as in
+**Status: Milestone 6 (progression and environmental combat).** Floor 1 is
+playable from the entrance to the Goblin Brute, with special abilities,
+treasure upgrades and hazards. The game starts at the Floor 1 entrance. Floor 1 has 14 rooms connected as in
 [docs/floor-layouts.md](docs/floor-layouts.md). The first four rooms are a
 tutorial, with signs that explain the controls.
 
@@ -27,8 +27,53 @@ Combat modes:
 - Bolts already in flight keep going after a switch. Solid walls and locked
   doors stop them; one-way platforms don't. Bolts also trigger switches.
 - The HUD names the active mode (orange for Carl, purple for Donut) and shows
-  all five cooldowns. The other mode's slots are dimmed. A glow at Carl's feet
+  every cooldown. The other mode's slots are dimmed. A glow at Carl's feet
   shows the mode too.
+
+Special abilities (L, depends on the mode):
+
+- **Explosive Kick (Carl):** tap or hold L, then release. It hits like a power
+  kick (15–35), then explodes at Carl's foot: 20 damage to everything nearby,
+  pushes it away from the blast, and sets off barrels. 3.5s cooldown.
+  **Unlocked by beating Floor 1.**
+- **Area Magic Burst (Donut):** press L. A purple ring shows the radius while
+  Donut casts, then a shockwave deals 22 damage all around you and pushes
+  enemies away. 6s cooldown. **Unlocked by beating Floor 2** (Milestone 8).
+- Locked specials show LOCKED on the HUD. For testing, press **U** to unlock
+  both (debug key).
+- Unlocks are permanent and saved in `user://save.json`, together with which
+  floors you've completed. A missing or broken save file just starts fresh.
+
+Treasure and temporary upgrades:
+
+- Opening a challenge room's chest pauses the game and offers **three random
+  upgrades** (name and effect). Pick one with the mouse, keyboard or
+  controller.
+- The six upgrades are Steel-Toed Boots (+25% kick damage), Tiara Polish
+  (+25% magic damage), Extra Oomph (+30% knockback), Quick Reflexes (−20%
+  cooldowns), Hearty Snack (+20 max HP) and Fresh Socks (+12% move speed).
+  Their strengths live in `resources/upgrades/*.tres`. Upgrades stack;
+  cooldowns never drop below 40%.
+- Upgrades last for the current floor: you keep them when you lose a life,
+  and lose them when the floor restarts (Game Over or Replay) or is completed.
+  The HUD lists the ones you have.
+
+Environmental combat:
+
+- **Spikes** (in shallow pits) hurt anything that touches them: 15 to you
+  (you bounce out), 30 to enemies. Kick goblins in to finish them off.
+  Goblins won't walk in on their own.
+- **Explosive barrels** blow up shortly after any attack hits them: 30 damage
+  to enemies and 20 to you within the blast, with knockback. Blasts set off
+  other barrels.
+- **Crates and cracked walls** only break under strong hits: the third kick
+  of a combo, a power kick, a charged blast (half charge or more),
+  explosions and the Magic Burst. Crates hold a potion; the cracked wall in
+  Crossroads Rest (F1-06) hides one.
+- **Enemy collisions:** an enemy knocked back hard (third kick, power kick,
+  big blasts) that slams into another enemy deals 15 to it and takes 8
+  itself, once per pair per knockback.
+- None of this is required to clear a room.
 
 Rooms and lives:
 
@@ -36,7 +81,7 @@ Rooms and lives:
   stays cleared.
 - **Challenge rooms** hold a trial that unlocks a reward chest: climb to it,
   kick three switches, cross pits, or defeat the guards. Opening the chest
-  shows a placeholder message; the upgrade choice comes in Milestone 6.
+  lets you choose an upgrade (see below).
 - **Safe rooms** have no enemies and a fountain that fully heals you once per
   floor run.
 - The **boss room** (F1-08) holds the Goblin Brute (see below). Beating him
@@ -72,8 +117,8 @@ The Goblin Brute (Floor 1 boss):
 - Dying in the fight costs a life and resets him to full health.
 - After he's beaten, take the stairs for the **Floor Complete** screen.
   Floor 2 comes in Milestone 8, so for now you can replay Floor 1 (3 lives,
-  3 potions, fresh rooms). Beating him marks Floor 1 as completed and
-  unlocks Floor 2 (saved to disk in Milestone 8).
+  3 potions, fresh rooms). Beating him marks Floor 1 as completed, unlocks
+  Floor 2 and the Explosive Kick, and saves that progress.
 
 Health and healing rules:
 
@@ -99,13 +144,15 @@ Health and healing rules:
 | Switch Carl / Donut | Tab | Left shoulder |
 | Carl: kick combo (tap ×3) · Donut: magic missile | J | West face button |
 | Carl: power kick · Donut: charged blast (hold, release) | K | North face button |
+| Special: Explosive Kick · Magic Burst (once unlocked) | L | East face button |
 | Drink potion | H | D-pad Down |
 | Interact (chest, fountain) | E | Left trigger |
 | Skip to next room (debug) | N | — |
+| Unlock both specials (debug) | U | — |
 
-The input map already contains the later actions (special attack, pause);
-they do nothing yet. The N debug key goes through the room's first
-exit even when it's locked. Turn it off with `debug_keys` on the Main node.
+The input map already contains the pause action; it does nothing yet
+(Milestone 8). The N debug key goes through the room's first exit even when
+it's locked. Turn off both debug keys with `debug_keys` on the Main node.
 
 ## Prerequisites
 
@@ -133,18 +180,24 @@ project. There are no external assets to download; all art is drawn in code.
 scenes/main/        Main.tscn — game root (player, HUD, room manager, lives flow)
 scenes/player/      Player.tscn + PlayerController (movement), PlayerCombat,
                     PlayerHealth, PotionInventory, HealthRegen (auto-heal),
-                    PlayerVisual (placeholder art)
+                    PlayerUpgrades (temporary upgrades), PlayerVisual (placeholder art)
 scenes/enemies/     EnemyBase.gd (health/knockback/death/drops), Goblin
 scenes/bosses/      GoblinBoss (Goblin Brute), Shockwave
 scenes/pickups/     PotionPickup
 scenes/rooms/       RoomBase.gd (builds a room from its text map); floor1/ room scenes
-scenes/environment/ SolidBlock, Door, FloorExit (stairs), Chest, Fountain, FloorSwitch, RoomSign
-scenes/ui/          HUD (incl. AbilityBar cooldowns, boss bar), GameOver, FloorComplete
-scripts/            GameManager.gd (autoload: lives), RoomManager.gd (transitions,
+scenes/environment/ SolidBlock, Door, FloorExit (stairs), Chest, Fountain, FloorSwitch, RoomSign,
+                    SpikeTrap, ExplosiveBarrel, Breakable (crates, cracked walls)
+scenes/ui/          HUD (incl. AbilityBar cooldowns, boss bar), GameOver, FloorComplete,
+                    UpgradeSelection
+scripts/            GameManager.gd (autoload: lives, unlocks), SaveManager.gd (autoload:
+                    user://save.json), RoomManager.gd (transitions,
                     room state), FloorData.gd (floor -> room scenes),
                     CombatStateManager.gd, Fx.gd, GameCamera.gd
-scripts/abilities/  Ability base; Carl: KickCombo, ChargedKick; Donut: MagicMissile, ChargedBlast
-scripts/combat/     Hit, HitQuery (instant hitbox queries), MagicProjectile (Donut's bolts)
+scripts/abilities/  Ability base; Carl: KickCombo, ChargedKick, ExplosiveKick;
+                    Donut: MagicMissile, ChargedBlast, AreaBurst
+scripts/combat/     Hit, HitQuery (instant hitbox queries), MagicProjectile (Donut's bolts),
+                    Explosion (radial damage)
+resources/upgrades/ Upgrade.gd + one .tres per temporary upgrade
 scripts/fx/         Placeholder effects; scripts/Fx.gd autoload (shake, hit stop)
 tests/              Headless test runner
 ```
@@ -163,6 +216,8 @@ view. Legend:
 E  entrance   1-9  exit door N      g  Goblin
 C  chest      F  fountain           S  switch     i  sign     B  boss spawn
 X  stairs to the next floor (open once the boss is beaten)
+^  spikes (replace the top floor row to make a 1-tile-deep spike pit)
+x  explosive barrel   b  crate (holds a potion)   W  cracked wall (solid until broken)
 ```
 
 Signs take their text from `signs`, in reading order. Exit door N leads to
@@ -248,10 +303,23 @@ seconds. The tests cover:
   death; 2 potion drops; the boss room flow (wakes on approach, boss bar,
   encounter ends, floor unlocked, auto-heal returns 3s later); dying resets
   the boss; the stairs and Floor Complete replay.
+- **Progression and environment:** specials locked until unlocked; Explosive
+  Kick and Magic Burst damage, radius and knockback; beating Floor 1/2
+  unlocks each special once; unlocks survive a reload from the save file;
+  missing, broken or wrong-typed save files fall back to defaults; the debug
+  unlock; every upgrade's effect, stacking, the cooldown floor and exact
+  reset; three distinct choices per chest; the chest → pause → pick → resume
+  flow; upgrades kept after death but cleared on floor restart; spikes hurt
+  the player and kill enemies (credited to the hazard); barrels explode,
+  chain and hurt both sides; crates and walls need strong hits; enemy
+  collisions damage once; weak hits cause no collision. Tests use their own
+  save file, never `user://save.json`.
 
 Game feel still has to be checked by hand: play through Floor 1, die a few
 times, run out of lives once, mix kicks and magic in a fight, and beat the
 Goblin Brute (check that his warnings are readable and the fight feels fair).
+Also try the specials (press U to unlock them), kick goblins into spikes and
+each other, and pick a few upgrades.
 
 Godot's `.godot/` cache, export credentials, and generated `build/` files are
 ignored by Git. The web build also creates `build/.gdignore` so Godot does not
