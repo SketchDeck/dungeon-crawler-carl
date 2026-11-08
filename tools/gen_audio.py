@@ -2,14 +2,18 @@
 
 Usage:  python3 tools/gen_audio.py        (or: make audio)
 
-Writes 16-bit mono WAV files to assets/sounds/ and assets/music/. Everything
+Writes 16-bit mono WAV sound effects to assets/sounds/ and Ogg Vorbis music
+to assets/music/ (needs oggenc: `brew install vorbis-tools`). Everything
 is generated from simple waveforms, so there is nothing to download. Tweak a
 recipe below and re-run to change a sound.
 """
 import math
 import os
 import random
+import shutil
 import struct
+import subprocess
+import sys
 import wave
 
 RATE = 22050
@@ -114,6 +118,19 @@ def write(path, samples, peak=0.9):
         w.setframerate(RATE)
         w.writeframes(b"".join(struct.pack("<h", int(max(-1, min(1, s * scale)) * 32767)) for s in samples))
     print("wrote", os.path.relpath(path, ROOT), "%.2fs" % (len(samples) / RATE))
+
+
+def write_ogg(path, samples, peak=0.9):
+    """Writes Ogg Vorbis (much smaller than WAV) via oggenc, for music."""
+    if shutil.which("oggenc") is None:
+        sys.exit("oggenc not found: install it with `brew install vorbis-tools` (or your package manager)")
+    tmp = path + ".tmp.wav"
+    write(tmp, samples, peak)
+    try:
+        subprocess.run(["oggenc", "--quiet", "-q", "4", "-o", path, tmp], check=True)
+    finally:
+        os.remove(tmp)
+    print("encoded", os.path.relpath(path, ROOT))
 
 
 # --- Sound effects -------------------------------------------------------------
@@ -239,4 +256,4 @@ if __name__ == "__main__":
     for name, make in SFX.items():
         write(os.path.join(SFX_DIR, name + ".wav"), make())
     for name, make in MUSIC.items():
-        write(os.path.join(MUSIC_DIR, name + ".wav"), make(), peak=0.7)
+        write_ogg(os.path.join(MUSIC_DIR, name + ".ogg"), make(), peak=0.7)

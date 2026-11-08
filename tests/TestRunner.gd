@@ -2753,7 +2753,7 @@ func test_sound_files() -> void:
 	for sound: String in names:
 		check(ResourceLoader.exists("res://assets/sounds/%s.wav" % sound), "%s.wav exists (used in %s)" % [sound, names[sound]])
 	for track in ["menu", "floor1", "floor2", "boss"]:
-		check(ResourceLoader.exists("res://assets/music/%s.wav" % track), "music %s exists" % track)
+		check(ResourceLoader.exists("res://assets/music/%s.ogg" % track), "music %s exists" % track)
 
 
 func test_sound_hooks() -> void:

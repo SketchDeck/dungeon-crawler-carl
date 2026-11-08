@@ -74,7 +74,7 @@ func _start_music(track: String) -> void:
 	# driver would keep the looping stream alive at exit.
 	if track == "" or DisplayServer.get_name() == "headless":
 		return
-	var stream := _load(MUSIC_DIR + track + ".wav", true)
+	var stream := _load(MUSIC_DIR + track + ".ogg", true)
 	if stream == null:
 		return
 	_music.stream = stream
@@ -83,19 +83,17 @@ func _start_music(track: String) -> void:
 	create_tween().tween_property(_music, "volume_db", 0.0, FADE)
 
 
-func _load(path: String, loop: bool) -> AudioStreamWAV:
+func _load(path: String, loop: bool) -> AudioStream:
 	if _sounds.has(path):
 		return _sounds[path]
 	if not ResourceLoader.exists(path):
 		push_warning("Missing sound %s (run make audio)" % path)
 		_sounds[path] = null
 		return null
-	var stream := load(path) as AudioStreamWAV
-	if stream and loop:
-		stream = stream.duplicate() as AudioStreamWAV
-		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		stream.loop_begin = 0
-		stream.loop_end = int(stream.get_length() * stream.mix_rate)
+	var stream := load(path) as AudioStream
+	if stream is AudioStreamOggVorbis and loop:
+		stream = stream.duplicate()
+		(stream as AudioStreamOggVorbis).loop = true
 	_sounds[path] = stream
 	return stream
 

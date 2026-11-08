@@ -48,8 +48,9 @@ Sound and music:
 - In the browser, sound starts after you click the game (browsers block
   audio until you interact with the page).
 - Every sound is synthesized by `tools/gen_audio.py` into `assets/sounds/`
-  and `assets/music/`. Edit a recipe there and run `make audio` to
-  regenerate.
+  and `assets/music/` (music is Ogg Vorbis, so `make audio` needs
+  `oggenc`: `brew install vorbis-tools`). Edit a recipe there and run
+  `make audio` to regenerate.
 
 Controller:
 
