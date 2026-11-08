@@ -68,6 +68,7 @@ func request_exit(index: int) -> bool:
 
 func _transition(target: String) -> void:
 	transitioning = true
+	Audio.play("door", -4.0)
 	player.process_mode = Node.PROCESS_MODE_DISABLED
 	if hud:
 		await hud.fade(1.0, transition_fade).finished

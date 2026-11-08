@@ -108,4 +108,5 @@ func _fire() -> void:
 	if released_ratio >= 0.5:
 		tags.append("heavy")
 	var hit := Hit.new(damage_for_ratio(released_ratio), knockback_for_ratio(released_ratio), player, tags)
+	Audio.play("magic_blast", -2.0)
 	combat.fire_projectile(hit, radius_for_ratio(released_ratio), speed, max_range, true)

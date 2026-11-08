@@ -5,17 +5,20 @@ extends CanvasLayer
 
 signal continue_requested
 signal replay_requested
+signal main_menu_requested
 
 @onready var _title: Label = %Title
 @onready var _body: Label = %Body
 @onready var _continue: Button = %ContinueButton
 @onready var _replay: Button = %ReplayButton
+@onready var _menu: Button = %MenuButton
 
 
 func _ready() -> void:
 	hide()
 	_continue.pressed.connect(_close.bind(continue_requested))
 	_replay.pressed.connect(_close.bind(replay_requested))
+	_menu.pressed.connect(_close.bind(main_menu_requested))
 
 
 func show_screen(floor_number: int, lives: int, potions: int, unlocks: Array[StringName] = []) -> void:

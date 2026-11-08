@@ -22,10 +22,10 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	var x := 0.0
 	var groups := [
-		[PlayerCombat.Mode.CARL, [[combat.kick_combo, "Kick", "J"], [combat.charged_kick, "Power", "K"],
-			[combat.explosive_kick, "Boom", "L"]]],
-		[PlayerCombat.Mode.DONUT, [[combat.magic_missile, "Missile", "J"], [combat.charged_blast, "Blast", "K"],
-			[combat.area_burst, "Burst", "L"]]],
+		[PlayerCombat.Mode.CARL, [[combat.kick_combo, "Kick", "basic_attack"], [combat.charged_kick, "Power", "charged_attack"],
+			[combat.explosive_kick, "Boom", "special_attack"]]],
+		[PlayerCombat.Mode.DONUT, [[combat.magic_missile, "Missile", "basic_attack"], [combat.charged_blast, "Blast", "charged_attack"],
+			[combat.area_burst, "Burst", "special_attack"]]],
 	]
 	for group: Array in groups:
 		var m: PlayerCombat.Mode = group[0]
@@ -34,11 +34,11 @@ func _draw() -> void:
 		for slot: Array in group[1]:
 			var ability: Ability = slot[0]
 			var unlocked := ability.is_unlocked()
-			_draw_slot(font, Rect2(Vector2(x, 0), SLOT), slot[1], slot[2] if unlocked else "LOCKED", color,
+			_draw_slot(font, Rect2(Vector2(x, 0), SLOT), slot[1], Settings.prompt_label(slot[2]) if unlocked else "LOCKED", color,
 				active and unlocked, ability.cooldown_ratio(), ability.charge_ratio() if ability.is_charging() else -1.0)
 			x += SLOT.x + GAP
 		x += GROUP_GAP - GAP
-	_draw_slot(font, Rect2(Vector2(x, 0), SLOT), "Dodge", "Shift", Color("#9fc4ff"), true,
+	_draw_slot(font, Rect2(Vector2(x, 0), SLOT), "Dodge", Settings.prompt_label("dodge"), Color("#9fc4ff"), true,
 		player.dodge_cooldown_ratio(), -1.0)
 
 

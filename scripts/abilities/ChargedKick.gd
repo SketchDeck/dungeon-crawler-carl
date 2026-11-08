@@ -103,6 +103,7 @@ func knockback_for_ratio(ratio: float) -> Vector2:
 
 
 func _strike() -> void:
+	Audio.play("kick_heavy")
 	var tags := PackedStringArray(["kick", "charged", "heavy"])
 	var hit := Hit.new(damage_for_ratio(released_ratio), knockback_for_ratio(released_ratio), player, tags)
 	combat.strike(hitbox, hit, true, Color("#ff7a2f").lerp(Color.WHITE, released_ratio * 0.5))

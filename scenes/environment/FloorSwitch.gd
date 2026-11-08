@@ -23,6 +23,7 @@ func take_hit(_hit: Hit) -> void:
 	if is_on:
 		return
 	is_on = true
+	Audio.play("switch_click")
 	Fx.burst(global_position + Vector2(0, -40), Color("#7dff8a"), 22.0, 0.3)
 	Fx.text(global_position + Vector2(0, -60), "Click!", Color("#7dff8a"), 14)
 	queue_redraw()

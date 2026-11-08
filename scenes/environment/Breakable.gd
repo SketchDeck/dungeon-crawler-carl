@@ -56,6 +56,7 @@ func break_apart() -> void:
 		return
 	is_broken = true
 	collision_layer = 0
+	Audio.play("crate_break")
 	var center := global_position + size * 0.5
 	Fx.burst(center, Color("#c8a070"), maxf(size.x, size.y) * 0.8, 0.35)
 	Fx.shake(0.25 if kind == Kind.WALL else 0.12)

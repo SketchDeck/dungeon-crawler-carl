@@ -25,6 +25,8 @@ func _run() -> void:
 	SaveManager.save_path = "user://test_save.json"
 	SaveManager.delete_save()
 	GameManager.reset_progress()
+	# Default settings and key bindings, whatever the real save says.
+	Settings.load_settings()
 	await _test("health clamps, invulnerability and death", test_health)
 	await _test("hurt invulnerability lasts 0.75s", test_hurt_invuln_duration)
 	await _test("kick combo deals 10/10/20", test_kick_combo_damage)
@@ -143,6 +145,25 @@ func _run() -> void:
 	await _test("slime boss sinks through one-way platforms", test_slime_boss_platforms)
 	await _test("Floor 1 Complete continues to Floor 2", test_continue_to_floor2)
 	await _test("beating Floor 2 unlocks Magic Burst and ends the run", test_floor2_complete)
+	# Milestone 8 part 2: menus, settings, saves.
+	await _test("progress and settings share the save without clobbering", test_save_merge)
+	await _test("volume settings drive the audio buses and persist", test_settings_volume)
+	await _test("fullscreen setting persists", test_settings_fullscreen)
+	await _test("keys can be remapped, persist and reset", test_rebind)
+	await _test("main menu: fresh start has no Continue", test_menu_fresh)
+	await _test("main menu: Continue and floor select after progress", test_menu_continue)
+	await _test("main menu: New Game asks before erasing progress", test_menu_new_game_confirm)
+	await _test("starting a floor from the menu is a fresh run", test_menu_floor_start)
+	await _test("pause menu pauses, resumes and leaves", test_pause_menu)
+	await _test("pause key toggles the pause menu", test_pause_key)
+	await _test("game over and floor complete offer Main Menu", test_menu_buttons)
+	# Milestone 8 part 3: audio, controller, full run.
+	await _test("every sound the code plays exists", test_sound_files)
+	await _test("gameplay triggers sound effects", test_sound_hooks)
+	await _test("music follows menus, floors and bosses", test_music)
+	await _test("every action works on a controller", test_controller_bindings)
+	await _test("prompts switch between keyboard and controller", test_controller_prompts)
+	await _test("full run: both floors, start to finish", test_full_run)
 	GameManager.floor_number = 1
 	SaveManager.delete_save()
 	print("\n%d passed, %d failed" % [_passed, _failed])
@@ -716,6 +737,7 @@ func spawn_main() -> Node:
 	var m := MAIN_SCENE.instantiate()
 	m.name = "TestWorldMain"
 	m.set("debug_keys", false)
+	m.set("navigate", false)
 	add_child(m)
 	var p: Player = m.get("player")
 	p.read_input = false
@@ -1810,6 +1832,7 @@ func test_unlocks_persist() -> void:
 	# A new session: forget everything, then load from disk.
 	GameManager.reset_progress()
 	check(not GameManager.is_unlocked(GameManager.EXPLOSIVE_KICK), "forgotten in memory")
+	SaveManager.reload()
 	GameManager.load_progress()
 	check(GameManager.is_unlocked(GameManager.EXPLOSIVE_KICK), "unlock loaded from the save")
 	check(GameManager.is_floor_completed(1), "floor completion loaded")
@@ -1823,11 +1846,13 @@ func test_bad_save_file() -> void:
 	var f := FileAccess.open(SaveManager.save_path, FileAccess.WRITE)
 	f.store_string("{ this is not json")
 	f.close()
+	SaveManager.reload()
 	GameManager.load_progress()
 	check_eq(GameManager.highest_unlocked_floor, 1, "broken save: defaults")
 	f = FileAccess.open(SaveManager.save_path, FileAccess.WRITE)
 	f.store_string('{"completed_floors": "nope", "highest_unlocked_floor": "x", "unlocked_abilities": [1, "explosive_kick", "fly"]}')
 	f.close()
+	SaveManager.reload()
 	GameManager.load_progress()
 	check_eq(GameManager.completed_floors.size(), 0, "wrong types ignored")
 	check_eq(GameManager.unlocked_abilities, [GameManager.EXPLOSIVE_KICK] as Array[StringName], "only known abilities kept")
@@ -2468,3 +2493,452 @@ func test_slime_boss_platforms() -> void:
 	await until(func() -> bool: return b.state != SlimeBoss.State.AIRBORNE, secs(2.0))
 	check(b.feet_y() > -2.0, "landed on the floor, not the platform (feet y=%.0f)" % b.feet_y())
 	check(b.global_position.x < 60.0, "still leapt at the player above")
+
+
+# --- Milestone 8 part 2: menus, settings, saves --------------------------------
+
+const MENU_SCENE := preload("res://scenes/ui/MainMenu.tscn")
+
+
+func spawn_menu() -> MainMenu:
+	var menu := MENU_SCENE.instantiate() as MainMenu
+	menu.name = "TestMenu"
+	menu.navigate = false
+	add_child(menu)
+	return menu
+
+
+func test_save_merge() -> void:
+	SaveManager.delete_save()
+	GameManager.reset_progress()
+	Settings.set_volume("Music", 0.3)
+	GameManager.complete_floor(1)
+	SaveManager.reload()
+	var data := SaveManager.load_data()
+	check(data.has("settings"), "settings kept after saving progress")
+	check_eq(int(data.get("highest_unlocked_floor", 0)), 2, "progress saved")
+	Settings.set_volume("Music", 0.6)
+	SaveManager.reload()
+	check(SaveManager.load_data().get("unlocked_abilities", []).has("explosive_kick"), "progress kept after saving settings")
+	SaveManager.delete_save()
+	GameManager.reset_progress()
+	Settings.load_settings()
+
+
+func test_settings_volume() -> void:
+	var music := AudioServer.get_bus_index("Music")
+	check(music >= 0 and AudioServer.get_bus_index("SFX") >= 0, "Music and SFX buses exist")
+	Settings.set_volume("Music", 0.5)
+	check_eq(AudioServer.get_bus_volume_db(music), linear_to_db(0.5), "bus volume set")
+	check(not AudioServer.is_bus_mute(music), "audible")
+	Settings.set_volume("SFX", 0.0)
+	check(AudioServer.is_bus_mute(AudioServer.get_bus_index("SFX")), "zero mutes the bus")
+	SaveManager.reload()
+	Settings.load_settings()
+	check_eq(Settings.volumes["Music"], 0.5, "music volume persisted")
+	check_eq(Settings.volumes["SFX"], 0.0, "sfx volume persisted")
+	SaveManager.delete_save()
+	Settings.load_settings()
+	check_eq(Settings.volumes["SFX"], 0.8, "defaults without a save")
+
+
+func test_settings_fullscreen() -> void:
+	Settings.set_fullscreen(true)
+	SaveManager.reload()
+	Settings.load_settings()
+	check(Settings.fullscreen, "fullscreen persisted")
+	Settings.set_fullscreen(false)
+	SaveManager.delete_save()
+	Settings.load_settings()
+
+
+func _key(code: Key) -> InputEventKey:
+	var e := InputEventKey.new()
+	e.physical_keycode = code
+	e.pressed = true
+	return e
+
+
+func test_rebind() -> void:
+	Settings.rebind("jump", KEY_W)
+	check(InputMap.event_is_action(_key(KEY_W), "jump"), "W now jumps")
+	check(not InputMap.event_is_action(_key(KEY_SPACE), "jump"), "Space no longer jumps")
+	var pad := InputEventJoypadButton.new()
+	pad.button_index = JOY_BUTTON_A
+	pad.pressed = true
+	check(InputMap.event_is_action(pad, "jump"), "controller button kept")
+	check_eq(Settings.key_label("jump"), "W", "shown as W")
+	Settings.rebind("move_left", KEY_Q)
+	check(InputMap.event_is_action(_key(KEY_Q), "move_left"), "Q moves left")
+	check(InputMap.event_is_action(_key(KEY_LEFT), "move_left"), "arrow key still works")
+	check_eq(Settings.key_label("move_left"), "Q", "new key shown first")
+	Settings.rebind("pause", KEY_P)
+	check(not InputMap.event_is_action(_key(KEY_P), "pause"), "pause can't be remapped")
+	# New session: bindings come back from the save.
+	InputMap.load_from_project_settings()
+	SaveManager.reload()
+	Settings.load_settings()
+	check(InputMap.event_is_action(_key(KEY_W), "jump"), "remap persisted")
+	Settings.reset_keys()
+	check(InputMap.event_is_action(_key(KEY_SPACE), "jump"), "reset restores Space")
+	check(not InputMap.event_is_action(_key(KEY_W), "jump"), "reset removes W")
+	SaveManager.delete_save()
+	Settings.load_settings()
+
+
+func test_menu_fresh() -> void:
+	SaveManager.delete_save()
+	GameManager.reset_progress()
+	var menu := spawn_menu()
+	await frames(2)
+	check(not menu.continue_button.visible, "no Continue without a started game")
+	check_eq(menu.floor_buttons.size(), 0, "no floor select")
+	menu.new_game_button.pressed.emit()
+	check(not menu.is_confirming(), "nothing to erase, no confirmation")
+	check(GameManager.can_continue(), "game started and saved")
+	check_eq(menu.requested_scene, MainMenu.GAME_SCENE, "starts the game")
+	check_eq(GameManager.floor_number, 1, "on Floor 1")
+	SaveManager.reload()
+	GameManager.load_progress()
+	check(GameManager.can_continue(), "Continue survives a restart")
+	GameManager.floor_number = 1
+
+
+func test_menu_continue() -> void:
+	SaveManager.delete_save()
+	GameManager.new_game()
+	var menu := spawn_menu()
+	await frames(2)
+	check(menu.continue_button.visible, "Continue shown")
+	check(menu.continue_button.text.contains("Floor 1"), "continues Floor 1")
+	menu.free()
+	GameManager.complete_floor(1)
+	menu = spawn_menu()
+	await frames(2)
+	check(menu.continue_button.text.contains("Floor 2"), "continues from the latest unlocked floor")
+	check_eq(menu.floor_buttons.size(), 2, "floor select: Floor 1 and Floor 2")
+	menu.continue_button.pressed.emit()
+	check_eq(GameManager.floor_number, 2, "Continue starts Floor 2")
+	menu.floor_buttons[0].pressed.emit()
+	check_eq(GameManager.floor_number, 1, "floor select can replay Floor 1")
+	menu.free()
+	GameManager.complete_floor(2)
+	check_eq(GameManager.continue_floor(), 2, "after the last floor, Continue stays on Floor 2")
+	GameManager.floor_number = 1
+	SaveManager.delete_save()
+	GameManager.reset_progress()
+
+
+func test_menu_new_game_confirm() -> void:
+	SaveManager.delete_save()
+	GameManager.new_game()
+	GameManager.complete_floor(1)
+	Settings.set_volume("Music", 0.25)
+	var menu := spawn_menu()
+	await frames(2)
+	menu.new_game_button.pressed.emit()
+	check(menu.is_confirming(), "asks before erasing")
+	check_eq(menu.requested_scene, "", "hasn't started yet")
+	(menu.find_child("Cancel", true, false) as Button).pressed.emit()
+	check(not menu.is_confirming(), "cancelled")
+	check(GameManager.is_unlocked(GameManager.EXPLOSIVE_KICK), "progress untouched")
+	menu.new_game_button.pressed.emit()
+	(menu.find_child("Confirm", true, false) as Button).pressed.emit()
+	check(not GameManager.is_unlocked(GameManager.EXPLOSIVE_KICK), "unlocks erased")
+	check(not GameManager.is_floor_completed(1), "floors erased")
+	check_eq(menu.requested_scene, MainMenu.GAME_SCENE, "new game started")
+	SaveManager.reload()
+	Settings.load_settings()
+	check_eq(Settings.volumes["Music"], 0.25, "settings kept")
+	SaveManager.delete_save()
+	GameManager.reset_progress()
+	Settings.load_settings()
+	GameManager.floor_number = 1
+
+
+func test_menu_floor_start() -> void:
+	GameManager.lose_life()
+	GameManager.floor_number = 2
+	var m := MAIN_SCENE.instantiate()
+	m.name = "TestWorldMain2"
+	m.set("navigate", false)
+	add_child(m)
+	var p: Player = m.get("player")
+	p.read_input = false
+	p.combat.read_input = false
+	await frames(2)
+	check_eq(rooms_of(m).current_room_id, "F2-01", "starts at the Floor 2 entrance")
+	check_eq(GameManager.lives, 3, "3 lives")
+	check_eq(p.potions.count, 3, "3 potions")
+	check(p.upgrades.active.is_empty(), "no upgrades")
+	GameManager.floor_number = 1
+
+
+func test_pause_menu() -> void:
+	var m := spawn_main()
+	var pm: PauseMenu = m.get("pause_menu")
+	await frames(2)
+	check(pm.open(), "opens")
+	check(get_tree().paused, "game paused")
+	check(pm.visible, "menu shown")
+	pm.resume_button.pressed.emit()
+	check(not get_tree().paused, "resumed")
+	check(not pm.visible, "menu hidden")
+	(m.get("game_over") as GameOverScreen).show_screen()
+	check(not pm.open(), "won't open over Game Over")
+	get_tree().paused = false
+	(m.get("game_over") as GameOverScreen).hide()
+	pm.open()
+	pm.menu_button.pressed.emit()
+	check(not get_tree().paused, "unpaused when leaving")
+	check_eq(m.get("requested_scene"), "res://scenes/ui/MainMenu.tscn", "goes to the main menu")
+
+
+func test_pause_key() -> void:
+	var m := spawn_main()
+	var pm: PauseMenu = m.get("pause_menu")
+	await frames(2)
+	var press := InputEventAction.new()
+	press.action = "pause"
+	press.pressed = true
+	Input.parse_input_event(press)
+	await frames(2)
+	check(pm.visible and get_tree().paused, "Esc/Start pauses")
+	var release := InputEventAction.new()
+	release.action = "pause"
+	release.pressed = false
+	Input.parse_input_event(release)
+	await frames(1)
+	Input.parse_input_event(press)
+	await frames(2)
+	check(not pm.visible and not get_tree().paused, "pressing it again resumes")
+	Input.parse_input_event(release)
+
+
+func test_menu_buttons() -> void:
+	var m := spawn_main()
+	var go: GameOverScreen = m.get("game_over")
+	go.show_screen()
+	(go.get_node("%MenuButton") as Button).pressed.emit()
+	check(not get_tree().paused, "unpaused")
+	check_eq(m.get("requested_scene"), "res://scenes/ui/MainMenu.tscn", "Game Over -> main menu")
+	m.set("requested_scene", "")
+	var fc: FloorCompleteScreen = m.get("floor_complete")
+	fc.show_screen(1, 3, 3)
+	(fc.get_node("%MenuButton") as Button).pressed.emit()
+	check_eq(m.get("requested_scene"), "res://scenes/ui/MainMenu.tscn", "Floor Complete -> main menu")
+	check(not get_tree().paused, "unpaused")
+
+
+# --- Milestone 8 part 3: audio, controller, full run ----------------------------
+
+func _gd_files(dir: String, out: Array[String]) -> void:
+	for f in DirAccess.get_files_at(dir):
+		if f.ends_with(".gd"):
+			out.append(dir.path_join(f))
+	for d in DirAccess.get_directories_at(dir):
+		if not d.begins_with(".") and d != "build" and d != "tests":
+			_gd_files(dir.path_join(d), out)
+
+
+func test_sound_files() -> void:
+	var files: Array[String] = []
+	_gd_files("res://", files)
+	var re := RegEx.create_from_string("Audio\\.play\\(\"([a-z_]+)\"")
+	var names := {}
+	for path in files:
+		for m in re.search_all(FileAccess.get_file_as_string(path)):
+			names[m.get_string(1)] = path
+	check(names.size() >= 20, "found the sound calls (%d)" % names.size())
+	for sound: String in names:
+		check(ResourceLoader.exists("res://assets/sounds/%s.wav" % sound), "%s.wav exists (used in %s)" % [sound, names[sound]])
+	for track in ["menu", "floor1", "floor2", "boss"]:
+		check(ResourceLoader.exists("res://assets/music/%s.wav" % track), "music %s exists" % track)
+
+
+func test_sound_hooks() -> void:
+	Audio.history.clear()
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 40.0)
+	await frames(5)
+	p.combat.kick_combo.press()
+	await frames(10)
+	check(Audio.history.has("kick"), "kick")
+	check(Audio.history.has("hit"), "hit on the goblin")
+	p.combat.request_switch()
+	check(Audio.history.has("switch_mode"), "mode switch")
+	await frames(30)
+	p.combat.magic_missile.press()
+	await frames(5)
+	check(Audio.history.has("magic_missile"), "missile")
+	g.take_hit(Hit.new(999.0))
+	check(Audio.history.has("enemy_death"), "enemy death")
+	set_health(p, 50.0)
+	p.potions.use()
+	check(Audio.history.has("potion_drink"), "potion")
+	check(p.try_dodge(1.0), "dodged")
+	check(Audio.history.has("dodge"), "dodge")
+	var barrel := ExplosiveBarrel.new()
+	w.add_child(barrel)
+	barrel.explode()
+	check(Audio.history.has("explosion"), "explosion")
+
+
+func test_music() -> void:
+	var menu := spawn_menu()
+	await frames(2)
+	check_eq(Audio.current_music, "menu", "menu music")
+	menu.free()
+	var m := spawn_main()
+	await frames(2)
+	check_eq(Audio.current_music, "floor1", "Floor 1 music")
+	var room := rooms_of(m).load_room("F1-08")
+	var p := player_of(m)
+	p.global_position.x = room.boss.global_position.x - 300.0
+	await frames(3)
+	check_eq(Audio.current_music, "boss", "boss music when the fight starts")
+	await until(func() -> bool: return not room.boss.is_immune())
+	room.boss.take_hit(Hit.new(999.0))
+	check_eq(Audio.current_music, "floor1", "back to the floor music after the boss")
+	check(Audio.history.has("floor_complete"), "victory jingle")
+	for i in 3:
+		p.health._invuln = 0.0
+		p.health.take_damage(999.0, true)
+		await frames(secs(1.7))
+	check_eq(Audio.current_music, "", "music stops on Game Over")
+	check(Audio.history.has("game_over"), "game over sound")
+
+
+func test_controller_bindings() -> void:
+	for action in ["move_left", "move_right", "jump", "dodge", "basic_attack", "charged_attack", "switch_mode",
+			"special_attack", "use_potion", "interact", "pause"]:
+		var has_pad := false
+		for e in InputMap.action_get_events(action):
+			if e is InputEventJoypadButton or e is InputEventJoypadMotion:
+				has_pad = true
+		check(has_pad, "%s has a controller binding" % action)
+	for ui in ["ui_accept", "ui_up", "ui_down", "ui_left", "ui_right", "ui_cancel"]:
+		var pad := false
+		for e in InputMap.action_get_events(ui):
+			if e is InputEventJoypadButton or e is InputEventJoypadMotion:
+				pad = true
+		check(pad, "menus: %s works on a controller" % ui)
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	p.read_input = true
+	await frames(3)
+	var a := InputEventJoypadButton.new()
+	a.button_index = JOY_BUTTON_A
+	a.pressed = true
+	Input.parse_input_event(a)
+	await frames(2)
+	check(p.velocity.y < 0.0, "A button jumps")
+	a.pressed = false
+	Input.parse_input_event(a)
+	var stick := InputEventJoypadMotion.new()
+	stick.axis = JOY_AXIS_LEFT_X
+	stick.axis_value = 1.0
+	Input.parse_input_event(stick)
+	await frames(20)
+	check(p.velocity.x > 100.0, "left stick moves")
+	stick.axis_value = 0.0
+	Input.parse_input_event(stick)
+	p.read_input = false
+	await frames(2)
+
+
+func test_controller_prompts() -> void:
+	var b := InputEventJoypadButton.new()
+	b.button_index = JOY_BUTTON_X
+	b.pressed = true
+	Input.parse_input_event(b)
+	await frames(1)
+	check(Settings.using_controller, "controller detected")
+	check_eq(Settings.prompt_label("jump"), "A", "jump shows A")
+	check_eq(Settings.prompt_label("interact"), "LT", "interact shows LT")
+	check_eq(Settings.prompt_label("switch_mode"), "LB", "switch shows LB")
+	b.pressed = false
+	Input.parse_input_event(b)
+	var k := InputEventKey.new()
+	k.physical_keycode = KEY_F
+	k.pressed = true
+	Input.parse_input_event(k)
+	await frames(1)
+	check(not Settings.using_controller, "back to keyboard")
+	check_eq(Settings.prompt_label("jump"), "Space", "jump shows Space")
+	k.pressed = false
+	Input.parse_input_event(k)
+	await frames(1)
+
+
+## Plays through a room: clears its fight, completes its trial, takes the chest
+## (picking the first upgrade), then leaves by exit `exit_index`.
+func _clear_room(m: Node, exit_index: int) -> void:
+	var rm := rooms_of(m)
+	var room := rm.current_room
+	var p := player_of(m)
+	p.health._invuln = 99.0
+	kill_required(room)
+	if room.room_type == RoomBase.RoomType.CHALLENGE:
+		room.complete_trial()
+		if room.chest and room.chest.interact():
+			var screen: UpgradeSelectionScreen = m.get("upgrade_selection")
+			screen.cards()[0].pressed.emit()
+	if room.room_type == RoomBase.RoomType.SAFE and room.fountain:
+		room.fountain.interact()
+	check(rm.request_exit(exit_index), "%s: exit %d" % [room.room_id, exit_index + 1])
+	while rm.transitioning:
+		await get_tree().process_frame
+
+
+func _beat_boss(m: Node) -> void:
+	var room := rooms_of(m).current_room
+	var p := player_of(m)
+	p.health._invuln = 99.0
+	p.global_position.x = room.boss.global_position.x - 300.0
+	await until(func() -> bool: return p.combat_state.is_boss_active())
+	await until(func() -> bool: return not room.boss.is_immune())
+	room.boss.take_hit(Hit.new(999.0))
+	check(room.floor_exit.open, "%s: stairs open" % room.room_id)
+	p.global_position = room.floor_exit.global_position + Vector2(0, -30)
+	await frames(3)
+
+
+func test_full_run() -> void:
+	SaveManager.delete_save()
+	GameManager.new_game()
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var screen: FloorCompleteScreen = m.get("floor_complete")
+	await frames(2)
+	# Floor 1 by the high road.
+	var route1 := [["F1-01", 0], ["F1-02", 0], ["F1-03", 0], ["F1-04", 0], ["F1-05", 0], ["F1-U1", 0],
+		["F1-U2", 0], ["F1-U3", 0], ["F1-06", 0], ["F1-07", 0]]
+	for step: Array in route1:
+		check_eq(rm.current_room_id, step[0], "in %s" % step[0])
+		await _clear_room(m, step[1])
+	check_eq(rm.current_room_id, "F1-08", "reached the Goblin Brute")
+	await _beat_boss(m)
+	check(screen.visible, "Floor 1 complete")
+	(screen.get_node("%ContinueButton") as Button).pressed.emit()
+	await frames(2)
+	# Floor 2 by the lower path, cutting across to the middle.
+	var route2 := [["F2-01", 0], ["F2-02", 2], ["F2-D1", 0], ["F2-D2", 0], ["F2-M2", 0], ["F2-U2", 0],
+		["F2-U3", 0], ["F2-U4", 0], ["F2-06", 0], ["F2-07", 0]]
+	for step: Array in route2:
+		check_eq(rm.current_room_id, step[0], "in %s" % step[0])
+		await _clear_room(m, step[1])
+	check_eq(rm.current_room_id, "F2-08", "reached the Mutating Slime")
+	await _beat_boss(m)
+	check(screen.visible, "Floor 2 complete")
+	check(GameManager.is_floor_completed(1) and GameManager.is_floor_completed(2), "both floors completed")
+	check(GameManager.is_unlocked(GameManager.EXPLOSIVE_KICK) and GameManager.is_unlocked(GameManager.AREA_BURST),
+		"both specials unlocked")
+	SaveManager.reload()
+	GameManager.load_progress()
+	check_eq(GameManager.continue_floor(), 2, "Continue offers Floor 2 after a reload")
+	get_tree().paused = false
+	GameManager.floor_number = 1
+	SaveManager.delete_save()
+	GameManager.reset_progress()

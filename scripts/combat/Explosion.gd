@@ -19,4 +19,5 @@ static func detonate(ctx: Node2D, at: Vector2, radius: float, damage: float, kno
 		target.take_hit(Hit.new(amount, Vector2(dir * knockback, -knockback * 0.6), source, tags))
 		count += 1
 	Fx.explosion(at, radius, color)
+	Audio.play("explosion")
 	return count

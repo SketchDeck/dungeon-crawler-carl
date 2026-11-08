@@ -106,6 +106,7 @@ func take_hit(hit: Hit) -> void:
 	last_hit = hit
 	health = maxf(health - amount, 0.0)
 	_flash_t = 0.1
+	Audio.play("hit", -3.0)
 	damaged.emit(self, amount)
 	Fx.text(global_position + Vector2(0, -body_size.y * 0.5 - 12), str(roundi(amount)),
 		Color("#ffd34d") if hit.has_tag("heavy") else Color.WHITE, 18 if hit.has_tag("heavy") else 15)
@@ -139,6 +140,7 @@ func die(hit: Hit = null) -> void:
 	if hit:
 		velocity = hit.knockback * knockback_multiplier
 	set_engaged(false)
+	Audio.play("enemy_death", -2.0)
 	_on_died()
 	Fx.burst(global_position, body_color(), 34.0, 0.35)
 	if should_drop_potion(rng.randf()):

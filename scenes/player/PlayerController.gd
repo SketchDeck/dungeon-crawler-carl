@@ -107,6 +107,7 @@ func _physics_process(delta: float) -> void:
 	# Jumping with coyote time, buffering and variable height.
 	if _jump_buffer > 0.0 and _coyote > 0.0 and _hurt_t <= 0.0:
 		velocity.y = jump_velocity
+		Audio.play("jump", -6.0)
 		_jump_buffer = 0.0
 		_coyote = 0.0
 	if read_input and Input.is_action_just_released("jump") and velocity.y < 0.0:
@@ -132,6 +133,7 @@ func try_dodge(dir := 0.0) -> bool:
 	_dodge_invuln = dodge_invuln_time
 	_hurt_t = 0.0
 	combat.interrupt()
+	Audio.play("dodge", -4.0)
 	return true
 
 
@@ -155,6 +157,7 @@ func take_hit(hit: Hit) -> bool:
 		return false
 	velocity = hit.knockback
 	_hurt_t = hurt_stun_time
+	Audio.play("player_hurt")
 	Fx.shake(0.45)
 	Fx.burst(global_position, Color("#ff5050"), 26.0)
 	return true

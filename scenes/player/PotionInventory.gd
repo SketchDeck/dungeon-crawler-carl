@@ -59,6 +59,7 @@ func use() -> bool:
 	var healed := _player.health.heal(heal_amount)
 	changed.emit(count, capacity)
 	used.emit(healed)
+	Audio.play("potion_drink")
 	Fx.burst(_player.global_position, Color("#7dff8a"), 30.0, 0.35)
 	Fx.text(_player.global_position + Vector2(0, -52), "+%d" % roundi(healed), Color("#7dff8a"), 18)
 	return true

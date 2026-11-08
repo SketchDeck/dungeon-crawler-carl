@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/FloorComplete.tscn" id="7_complete"]
 [ext_resource type="PackedScene" path="res://scenes/ui/UpgradeSelection.tscn" id="8_upgrades"]
 [ext_resource type="Script" path="res://scripts/DungeonAIManager.gd" id="9_ai"]
+[ext_resource type="Script" path="res://scenes/ui/PauseMenu.gd" id="10_pause"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -29,3 +30,6 @@ script = ExtResource("9_ai")
 [node name="FloorComplete" parent="." instance=ExtResource("7_complete")]
 
 [node name="UpgradeSelection" parent="." instance=ExtResource("8_upgrades")]
+
+[node name="PauseMenu" type="CanvasLayer" parent="."]
+script = ExtResource("10_pause")

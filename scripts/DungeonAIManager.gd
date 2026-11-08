@@ -116,6 +116,7 @@ func award(id: StringName, entry: Dictionary) -> bool:
 			player.upgrades.add_boost(PlayerUpgrades.BOOST_DAMAGE, damage_boost, boost_rooms)
 		UNTOUCHABLE:
 			player.health.heal(room_clear_heal)
+	Audio.play("achievement", 0.0, 0.0)
 	if hud:
 		hud.announce(entry)
 	achievement_unlocked.emit(id, entry)

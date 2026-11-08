@@ -96,6 +96,7 @@ func start_fight() -> void:
 	state = State.INTRO
 	_t = intro_time
 	set_engaged(true)
+	Audio.play("boss_roar")
 	Fx.shake(0.5)
 	Fx.text(global_position + Vector2(0, -80), "RAAAGH!", WARN, 24)
 	fight_started.emit()
@@ -223,6 +224,7 @@ func _begin_attack(a: Attack) -> void:
 	state = State.TELEGRAPH
 	_t = telegraph_time(a)
 	velocity.x = 0.0
+	Audio.play("boss_warning", -4.0, 0.0)
 
 
 func _execute() -> void:
@@ -230,6 +232,7 @@ func _execute() -> void:
 		Attack.CHARGE:
 			state = State.CHARGING
 			_charge_from = global_position.x
+			Audio.play("charge")
 			Fx.shake(0.2)
 		Attack.SLAM:
 			_slam()
@@ -260,6 +263,7 @@ func _hit_wall() -> void:
 	_chained = false
 	state = State.STUNNED
 	_t = stun_time
+	Audio.play("slam", -4.0)
 	Fx.shake(0.6)
 	Fx.burst(global_position + Vector2(facing * body_size.x * 0.5, -10), Color("#d8c0a0"), 40.0, 0.35)
 	Fx.text(global_position + Vector2(0, -70), "DAZED", Color("#ffd34d"), 18)
@@ -283,6 +287,7 @@ func _slam() -> void:
 		wave.hit = Hit.new(slam_damage, Vector2(slam_knockback.x * dir, slam_knockback.y), self, PackedStringArray(["shockwave"]))
 		get_parent().add_child(wave)
 		wave.global_position = feet + Vector2(dir * body_size.x * 0.5, 0)
+	Audio.play("slam")
 	Fx.shake(0.5)
 	Fx.burst(feet, Color("#d8c0a0"), 46.0, 0.3)
 
@@ -308,6 +313,7 @@ func _enter_phase_two() -> void:
 	Fx.shake(0.8)
 	Fx.burst(global_position, WARN, 70.0, 0.5)
 	Fx.text(global_position + Vector2(0, -90), "ENRAGED!", WARN, 26)
+	Audio.play("boss_roar")
 
 
 func _on_died() -> void:

@@ -106,6 +106,8 @@ func _hop() -> void:
 	state = State.HOP
 	_air_t = 0.0
 	_hit_this_hop = false
+	if is_engaged:
+		Audio.play("blorp", -12.0)
 
 
 func _ground_at(dx: float) -> bool:

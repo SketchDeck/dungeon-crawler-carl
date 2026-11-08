@@ -144,6 +144,7 @@ func _apply_switch() -> void:
 			ability.cancel()
 	mode = Mode.DONUT if mode == Mode.CARL else Mode.CARL
 	time_since_switch = 0.0
+	Audio.play("switch_mode", -4.0, 0.0)
 	mode_changed.emit(mode)
 
 

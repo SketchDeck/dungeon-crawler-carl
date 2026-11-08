@@ -2,7 +2,7 @@ GODOT ?= godot
 PYTHON ?= python3
 PORT ?= 8000
 
-.PHONY: editor check test web serve clean
+.PHONY: editor check test web serve clean audio
 
 editor:
 	$(GODOT) --editor --path .
@@ -14,6 +14,9 @@ check:
 test:
 	$(GODOT) --headless --path . --import
 	$(GODOT) --headless --path . --fixed-fps 60 tests/TestRunner.tscn
+
+audio:
+	$(PYTHON) tools/gen_audio.py
 
 web:
 	mkdir -p build/web

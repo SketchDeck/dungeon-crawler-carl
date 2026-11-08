@@ -12,6 +12,8 @@ extends Node2D
 ## floor restarts or is completed.
 
 @export var respawn_delay := 1.5
+const MENU_SCENE := "res://scenes/ui/MainMenu.tscn"
+
 ## Debug: N jumps through the current room's first exit, ignoring locks;
 ## U unlocks both special abilities.
 @export var debug_keys := true
@@ -24,6 +26,11 @@ extends Node2D
 @onready var floor_complete: FloorCompleteScreen = $FloorComplete
 @onready var upgrade_selection: UpgradeSelectionScreen = $UpgradeSelection
 @onready var dungeon_ai: DungeonAIManager = $DungeonAI
+@onready var pause_menu: PauseMenu = $PauseMenu
+
+## Tests turn this off and read `requested_scene` instead of changing scenes.
+var navigate := true
+var requested_scene := ""
 
 ## Abilities unlocked since the floor started, shown on Floor Complete.
 var _new_unlocks: Array[StringName] = []
@@ -39,15 +46,33 @@ func _ready() -> void:
 	room_manager.floor_exit_reached.connect(_on_floor_exit_reached)
 	floor_complete.continue_requested.connect(continue_to_next_floor)
 	floor_complete.replay_requested.connect(restart_floor)
+	floor_complete.main_menu_requested.connect(go_to_main_menu)
+	game_over.main_menu_requested.connect(go_to_main_menu)
+	pause_menu.main_menu_requested.connect(go_to_main_menu)
 	room_manager.treasure_opened.connect(_on_treasure_opened)
 	upgrade_selection.chosen.connect(_on_upgrade_chosen)
 	GameManager.ability_unlocked.connect(_on_ability_unlocked)
+	room_manager.room_entered.connect(_on_room_entered_music)
 	GameManager.reset_lives()
 	room_manager.start_floor(GameManager.floor_number)
 
 
+## Floor music, switching to the boss theme while a boss fight is on.
+func floor_music() -> String:
+	return "floor%d" % GameManager.floor_number
+
+
+func _on_room_entered_music(room: RoomBase) -> void:
+	Audio.play_music(floor_music())
+	room.boss_started.connect(func(_boss: BossBase) -> void: Audio.play_music("boss"))
+	room.boss_defeated.connect(func() -> void:
+		Audio.play("floor_complete", 0.0, 0.0)
+		Audio.play_music(floor_music()))
+
+
 func _on_player_died() -> void:
 	var remaining := GameManager.lose_life()
+	Audio.play("life_lost", 0.0, 0.0)
 	Fx.shake(0.6)
 	Fx.burst(player.global_position, Color("#ff5050"), 48.0, 0.5)
 	Fx.text(player.global_position + Vector2(0, -60),
@@ -58,6 +83,8 @@ func _on_player_died() -> void:
 	if remaining > 0:
 		respawn_in_current_room()
 	else:
+		Audio.play_music("")
+		Audio.play("game_over", 0.0, 0.0)
 		game_over.show_screen()
 
 
@@ -78,11 +105,22 @@ func restart_floor() -> void:
 	room_manager.start_floor(GameManager.floor_number)
 
 
+## Back to the title screen. Completed floors and unlocks are already saved.
+func go_to_main_menu() -> void:
+	get_tree().paused = false
+	requested_scene = MENU_SCENE
+	if navigate:
+		get_tree().change_scene_to_file(MENU_SCENE)
+
+
 func _on_floor_exit_reached(floor_number: int) -> void:
+	Audio.play_music("menu")
+	Audio.play("achievement", 0.0, 0.0)
 	floor_complete.show_screen(floor_number, GameManager.lives, player.potions.count, _new_unlocks)
 
 
 func _on_ability_unlocked(id: StringName) -> void:
+	Audio.play("achievement", 0.0, 0.0)
 	_new_unlocks.append(id)
 	Fx.text(player.global_position + Vector2(0, -90), "NEW ABILITY: %s" % GameManager.ABILITY_NAMES.get(id, String(id)),
 		Color("#ffd34d"), 18)

@@ -74,6 +74,7 @@ func damage_value() -> float:
 
 
 func _burst() -> void:
+	Audio.play("magic_blast")
 	Explosion.detonate(player, player.global_position, radius, damage_value(),
 		knockback * combat.knockback_multiplier, combat.target_mask, player,
 		PackedStringArray(["magic", "burst", "heavy"]), PlayerCombat.DONUT_COLOR)

@@ -57,3 +57,10 @@ custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 size_flags_horizontal = 4
 text = "Replay Floor 1"
+
+[node name="MenuButton" type="Button" parent="Center/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Main Menu"

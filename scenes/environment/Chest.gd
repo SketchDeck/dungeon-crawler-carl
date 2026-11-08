@@ -21,6 +21,7 @@ func interact() -> bool:
 		Fx.text(global_position + Vector2(0, -60), "Complete the trial first", Color(1, 1, 1, 0.85), 13)
 		return false
 	is_open = true
+	Audio.play("chest")
 	Fx.burst(global_position + Vector2(0, -14), Color("#ffd34d"), 40.0, 0.45)
 	Fx.shake(0.2)
 	opened.emit()

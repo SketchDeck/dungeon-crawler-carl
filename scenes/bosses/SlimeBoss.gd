@@ -100,6 +100,7 @@ func start_fight() -> void:
 	state = State.INTRO
 	_t = intro_time
 	set_engaged(true)
+	Audio.play("boss_roar", 0.0, 0.0)
 	Fx.shake(0.5)
 	Fx.text(global_position + Vector2(0, -70), "BLORP!", COLOR_P1, 24)
 	fight_started.emit()
@@ -227,6 +228,7 @@ func _begin_attack(a: Attack) -> void:
 		target_x = player.global_position.x
 	state = State.TELEGRAPH
 	_t = telegraph_time(a)
+	Audio.play("boss_warning", -4.0, 0.0)
 
 
 func _execute() -> void:
@@ -253,6 +255,7 @@ func _volley() -> void:
 		glob.pool_duration = phase2_pool_duration
 		get_parent().add_child(glob)
 		glob.global_position = glob_origin()
+	Audio.play("blorp")
 	Fx.burst(glob_origin(), COLOR_P1, 40.0, 0.25)
 	Fx.shake(0.2)
 
@@ -283,6 +286,7 @@ func _land() -> void:
 	pool.damage = pool_damage
 	get_parent().add_child(pool)
 	pool.global_position = Vector2(global_position.x, feet_y())
+	Audio.play("slam")
 	Fx.shake(0.55)
 	Fx.burst(Vector2(global_position.x, feet_y()), COLOR_P1, 70.0, 0.35)
 	state = State.ACTIVE
@@ -300,6 +304,7 @@ func _spawn_minis() -> void:
 		minis.append(mini)
 	Fx.burst(global_position, COLOR_P2, 60.0, 0.3)
 	Fx.text(global_position + Vector2(0, -70), "SPLIT!", COLOR_P2, 18)
+	Audio.play("blorp", 2.0)
 
 
 func _enter_phase_two() -> void:
@@ -309,6 +314,7 @@ func _enter_phase_two() -> void:
 	Fx.shake(0.8)
 	Fx.burst(global_position, COLOR_P2, 90.0, 0.5)
 	Fx.text(global_position + Vector2(0, -90), "MUTATING!", COLOR_P2, 26)
+	Audio.play("boss_roar")
 
 
 func _on_died() -> void:

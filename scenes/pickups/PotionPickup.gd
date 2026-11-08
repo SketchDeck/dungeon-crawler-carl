@@ -39,6 +39,7 @@ func _physics_process(delta: float) -> void:
 		if player == null or player.health.is_dead:
 			continue
 		if player.potions.add():
+			Audio.play("potion_pickup")
 			Fx.burst(global_position, Color("#ff6b6b"), 20.0, 0.3)
 			Fx.text(global_position + Vector2(0, -20), "+1 Potion", Color("#ff9090"), 14)
 			queue_free()

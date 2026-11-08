@@ -22,6 +22,7 @@ func interact() -> bool:
 	dry = true
 	Fx.burst(p.global_position, Color("#7ad8ff"), 36.0, 0.4)
 	Fx.text(p.global_position + Vector2(0, -52), "+%d" % roundi(healed), Color("#7dff8a"), 18)
+	Audio.play("heal")
 	used.emit()
 	return true
 

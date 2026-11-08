@@ -26,6 +26,8 @@ var completed_floors: Array[int] = []
 ## Highest floor the player may start from (Floor 1 beaten unlocks Floor 2).
 var highest_unlocked_floor := 1
 var unlocked_abilities: Array[StringName] = []
+## A game has been started (New Game), so the main menu offers Continue.
+var game_started := false
 
 
 func _ready() -> void:
@@ -79,13 +81,35 @@ func reset_progress() -> void:
 	completed_floors.clear()
 	highest_unlocked_floor = 1
 	unlocked_abilities.clear()
+	game_started = false
+
+
+## Erases progress (keeps settings) and starts a fresh game record.
+func new_game() -> void:
+	reset_progress()
+	game_started = true
+	save_progress()
+
+
+## Main menu Continue is available once a game has been started.
+func can_continue() -> bool:
+	return game_started
+
+
+## The latest floor the player can start from that actually exists.
+func continue_floor() -> int:
+	var f := highest_unlocked_floor
+	while f > 1 and not FloorData.has_floor(f):
+		f -= 1
+	return f
 
 
 func save_progress() -> void:
 	var abilities: Array[String] = []
 	for id in unlocked_abilities:
 		abilities.append(String(id))
-	SaveManager.save_data({
+	SaveManager.update({
+		"game_started": game_started,
 		"completed_floors": completed_floors.duplicate(),
 		"highest_unlocked_floor": highest_unlocked_floor,
 		"unlocked_abilities": abilities,
@@ -104,6 +128,9 @@ func load_progress() -> void:
 	var highest: Variant = data.get("highest_unlocked_floor", 1)
 	if highest is float or highest is int:
 		highest_unlocked_floor = maxi(1, int(highest))
+	var started: Variant = data.get("game_started", false)
+	# Saves from before the flag existed count as started if they have progress.
+	game_started = (started is bool and started) or not completed_floors.is_empty()
 	var abilities: Variant = data.get("unlocked_abilities", [])
 	if abilities is Array:
 		for a: Variant in abilities:

@@ -35,6 +35,7 @@ var _t := 0.0
 @onready var _mode_label: Label = %ModeLabel
 @onready var _abilities: Control = %Abilities
 @onready var _upgrades_label: Label = %UpgradesLabel
+@onready var _controls: Label = %Controls
 @onready var _boosts_label: Label = %BoostsLabel
 @onready var achievement_panel: AchievementPanel = %Achievement
 
@@ -59,6 +60,8 @@ func _ready() -> void:
 	_fade.color.a = 0.0
 	GameManager.lives_changed.connect(_on_lives_changed)
 	_on_lives_changed(GameManager.lives)
+	Settings.changed.connect(_update_controls_hint)
+	_update_controls_hint()
 	_fill_box = _flat(FILL)
 	_ghost_fill_box = _flat(Color("#f2d0a0"))
 	_bar.add_theme_stylebox_override("background", _flat(Color(0, 0, 0, 0)))
@@ -97,6 +100,23 @@ func _on_upgrades_changed(active: Array[Upgrade]) -> void:
 	_upgrades_label.visible = not names.is_empty()
 
 
+## Bottom-line controls reminder, built from the current key bindings.
+func _update_controls_hint() -> void:
+	var k := func(action: String) -> String: return Settings.prompt_label(action)
+	($TopLeft/PotionRow/PotionHint as Label).text = "[%s] drink" % k.call("use_potion")
+	if _player:
+		_on_mode_changed(_player.combat.mode)
+		_mode_pulse = 0.0
+	if Settings.using_controller:
+		_controls.text = "Stick move · %s jump · %s dodge · %s Carl/Donut · %s kick/missile · hold %s power/blast · %s special · %s potion · %s use · %s pause" % [
+			k.call("jump"), k.call("dodge"), k.call("switch_mode"), k.call("basic_attack"), k.call("charged_attack"),
+			k.call("special_attack"), k.call("use_potion"), k.call("interact"), k.call("pause")]
+		return
+	_controls.text = "%s/%s move · %s jump · %s dodge · %s Carl/Donut · %s kick/missile · hold %s power/blast · %s special · %s potion · %s use · Esc pause" % [
+		k.call("move_left"), k.call("move_right"), k.call("jump"), k.call("dodge"), k.call("switch_mode"),
+		k.call("basic_attack"), k.call("charged_attack"), k.call("special_attack"), k.call("use_potion"), k.call("interact")]
+
+
 ## Dungeon AI achievement popup (queued, never pauses the game).
 func announce(entry: Dictionary) -> void:
 	achievement_panel.announce(entry)
@@ -116,7 +136,7 @@ func _on_boosts_changed() -> void:
 func _on_mode_changed(mode: PlayerCombat.Mode) -> void:
 	# Always name the mode, so it doesn't rely on color alone.
 	var what := "kicks" if mode == PlayerCombat.Mode.CARL else "magic"
-	_mode_label.text = "MODE: %s · %s   [Tab] switch" % [PlayerCombat.mode_name(mode), what]
+	_mode_label.text = "MODE: %s · %s   [%s] switch" % [PlayerCombat.mode_name(mode), what, Settings.prompt_label("switch_mode")]
 	_mode_label.add_theme_color_override("font_color", PlayerCombat.mode_color(mode).lightened(0.15))
 	_mode_pulse = 0.25
 

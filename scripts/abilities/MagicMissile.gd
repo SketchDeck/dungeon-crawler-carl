@@ -76,4 +76,5 @@ func damage_value() -> float:
 
 func _fire() -> void:
 	var hit := Hit.new(damage_value(), knockback * combat.knockback_multiplier, player, PackedStringArray(["magic"]))
+	Audio.play("magic_missile", -5.0)
 	combat.fire_projectile(hit, radius, speed, max_range, false)

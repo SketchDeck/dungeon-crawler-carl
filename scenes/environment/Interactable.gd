@@ -34,8 +34,9 @@ func draw_prompt(height := 56.0) -> void:
 		return
 	var font := ThemeDB.fallback_font
 	var pos := Vector2(-80, -height)
-	draw_string_outline(font, pos, "[E] " + text, HORIZONTAL_ALIGNMENT_CENTER, 160, 13, 4, Color.BLACK)
-	draw_string(font, pos, "[E] " + text, HORIZONTAL_ALIGNMENT_CENTER, 160, 13, Color(1, 1, 1, 0.9))
+	var line := "[%s] %s" % [Settings.prompt_label("interact"), text]
+	draw_string_outline(font, pos, line, HORIZONTAL_ALIGNMENT_CENTER, 160, 13, 4, Color.BLACK)
+	draw_string(font, pos, line, HORIZONTAL_ALIGNMENT_CENTER, 160, 13, Color(1, 1, 1, 0.9))
 
 
 # --- Overridables -----------------------------------------------------------

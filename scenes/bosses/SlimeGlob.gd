@@ -57,6 +57,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _splat(on_ground: bool) -> void:
+	Audio.play("acid", -8.0)
 	Fx.burst(global_position, Color("#8cff5a"), radius * 2.2, 0.2)
 	if on_ground and leaves_pool:
 		var pool := AcidPool.new()
