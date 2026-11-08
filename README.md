@@ -331,6 +331,12 @@ exit, chest, switch, fountain, enemy and one-way platform can be reached
 from the entrance, and tests
 the jump height and pit crossing with real physics.
 
+## Share with the team
+
+To let people play without repo access, run `make playtest` and upload
+`build/dcc-playtest.zip` to a private itch.io page. Step-by-step setup is in
+[docs/playtesting.md](docs/playtesting.md).
+
 ## Run in a browser
 
 ```sh
@@ -372,6 +378,8 @@ make check  # Import/parse project resources, then run a short headless smoke ch
 make test   # Run the headless test suite (tests/TestRunner.tscn); exit code 1 on failure
 make web    # Export the browser build (requires matching export templates)
 make audio  # Regenerate the sound effects and music in assets/ (Python 3)
+make playtest  # Release web build without debug keys + build/dcc-playtest.zip for itch.io
+make itch ITCH_TARGET=user/game  # Build and upload with butler (see docs/playtesting.md)
 make clean  # Remove generated builds
 ```
 

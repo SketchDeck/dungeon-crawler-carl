@@ -37,6 +37,9 @@ var _new_unlocks: Array[StringName] = []
 
 
 func _ready() -> void:
+	# Playtest builds (make playtest) are for the team: no debug shortcuts.
+	if OS.has_feature("playtest"):
+		debug_keys = false
 	hud.bind_player(player)
 	hud.bind_rooms(room_manager)
 	room_manager.setup(player, room_slot, hud)
