@@ -9,6 +9,12 @@ signal ability_unlocked(id: StringName)
 ## Gameplay events the Dungeon AI listens to (emitted by every enemy).
 signal enemy_collided(enemy: EnemyBase, other: EnemyBase)
 signal enemy_died(enemy: EnemyBase)
+## A magic hit landed on a launched enemy.
+signal enemy_juggled(enemy: EnemyBase)
+## An enemy shrugged off a hit (shield, shell).
+signal enemy_resisted(enemy: EnemyBase, hit: Hit)
+## An Armored Slime's shell was cracked.
+signal shell_cracked(enemy: EnemyBase)
 
 const MAX_LIVES := 3
 const EXPLOSIVE_KICK := &"explosive_kick"

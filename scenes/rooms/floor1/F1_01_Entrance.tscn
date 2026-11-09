@@ -10,7 +10,7 @@ room_type = 0
 trial = 0
 trial_hint = ""
 exits = PackedStringArray("F1-02")
-signs = PackedStringArray("Welcome, Crawler. A/D or the arrow keys move you.", "Space jumps. Hold it longer to jump higher.", "Left Shift dodges. You are briefly invulnerable mid-dodge.")
+signs = PackedStringArray("Welcome, Crawler. {move_left}/{move_right} move you.", "{jump} jumps. Hold it longer to jump higher.", "{dodge} dodges. You are briefly invulnerable mid-dodge.")
 layout = "########################################
 #......................................#
 #......................................#

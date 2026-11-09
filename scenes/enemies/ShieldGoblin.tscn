@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/enemies/ShieldGoblin.gd" id="1_shield"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(26, 40)
+
+[node name="ShieldGoblin" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 1
+floor_snap_length = 6.0
+script = ExtResource("1_shield")
+display_name = "Shield Goblin"
+max_health = 60.0
+chase_speed = 110.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")

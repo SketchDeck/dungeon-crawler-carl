@@ -19,6 +19,10 @@ var hit: Hit
 var heavy := false
 var color := Color("#c77dff")
 var mask := HitQuery.LAYER_ENEMIES | HitQuery.LAYER_HITTABLE | HitQuery.LAYER_WORLD
+## Bolts curve up or down toward flying enemies ahead of them (Cave Bats), at
+## up to this many pixels per second.
+var seek_speed := 300.0
+var seek_range := Vector2(320, 200)
 
 var travelled := 0.0
 var _t := 0.0
@@ -34,6 +38,9 @@ func _physics_process(delta: float) -> void:
 	var step := speed * delta
 	global_position.x += direction * step
 	travelled += step
+	var flyer := _flyer_ahead()
+	if flyer:
+		global_position.y = move_toward(global_position.y, flyer.global_position.y, seek_speed * delta)
 	_trail.push_front(global_position)
 	if _trail.size() > 7:
 		_trail.pop_back()
@@ -59,6 +66,25 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 	else:
 		queue_redraw()
+
+
+## The nearest living flying enemy in front of the bolt, if any.
+func _flyer_ahead() -> Node2D:
+	if seek_speed <= 0.0:
+		return null
+	var best: Node2D = null
+	var best_d := INF
+	for node in get_tree().get_nodes_in_group(Bat.GROUP_FLYERS):
+		var e := node as EnemyBase
+		if e == null or e.is_dead:
+			continue
+		var d := (e.global_position - global_position) * Vector2(direction, 1)
+		if d.x < -4.0 or d.x > seek_range.x or absf(d.y) > seek_range.y:
+			continue
+		if d.x < best_d:
+			best_d = d.x
+			best = e
+	return best
 
 
 ## Target closest to where the projectile came from.

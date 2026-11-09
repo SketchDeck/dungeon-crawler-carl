@@ -150,6 +150,8 @@ SFX = {
     "magic_blast": lambda: mix(tone(300, 0.38, "saw", 1300, vol=0.3, vibrato=0.05, vib_rate=30),
                                tone(600, 0.38, "sine", 2400, vol=0.35), noise(0.3, 0.25, cutoff=0.3, seed=7)),
     # Impacts
+    "block": lambda: mix(tone(1500, 0.07, "square", 1100, vol=0.3, duty=0.3), tone(2300, 0.12, "sine", 2100, vol=0.25),
+                         noise(0.05, 0.4, cutoff=0.9, seed=31)),
     "hit": lambda: mix(noise(0.07, 0.7, cutoff=0.8, seed=2), tone(220, 0.07, "square", 120, vol=0.3)),
     "enemy_death": lambda: mix(tone(420, 0.32, "square", 70, vol=0.35, duty=0.4), noise(0.2, 0.35, cutoff=0.4, seed=9)),
     "explosion": lambda: mix(noise(0.7, 1.0, cutoff=0.9, cutoff_end=0.02, seed=11), tone(80, 0.5, "sine", 35, vol=0.9)),
@@ -253,7 +255,11 @@ MUSIC = {
 
 
 if __name__ == "__main__":
+    # `python3 tools/gen_audio.py block kick` regenerates just those sounds/tracks.
+    only = set(sys.argv[1:])
     for name, make in SFX.items():
-        write(os.path.join(SFX_DIR, name + ".wav"), make())
+        if not only or name in only:
+            write(os.path.join(SFX_DIR, name + ".wav"), make())
     for name, make in MUSIC.items():
-        write_ogg(os.path.join(MUSIC_DIR, name + ".ogg"), make(), peak=0.7)
+        if not only or name in only:
+            write_ogg(os.path.join(MUSIC_DIR, name + ".ogg"), make(), peak=0.7)

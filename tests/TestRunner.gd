@@ -7,6 +7,9 @@ const SLIME_SCENE := preload("res://scenes/enemies/Slime.tscn")
 const SLIME_BOSS_SCENE := preload("res://scenes/bosses/SlimeBoss.tscn")
 const GOBLIN_SCENE := preload("res://scenes/enemies/Goblin.tscn")
 const BOSS_SCENE := preload("res://scenes/bosses/GoblinBoss.tscn")
+const SHIELD_GOBLIN_SCENE := preload("res://scenes/enemies/ShieldGoblin.tscn")
+const ARMORED_SLIME_SCENE := preload("res://scenes/enemies/ArmoredSlime.tscn")
+const BAT_SCENE := preload("res://scenes/enemies/Bat.tscn")
 
 var _passed := 0
 var _failed := 0
@@ -164,6 +167,14 @@ func _run() -> void:
 	await _test("every action works on a controller", test_controller_bindings)
 	await _test("prompts switch between keyboard and controller", test_controller_prompts)
 	await _test("full run: both floors, start to finish", test_full_run)
+	# Milestone 9: switching matters.
+	await _test("shield goblin blocks kicks from the front only", test_shield_goblin)
+	await _test("armored slime: magic splashes off until a heavy kick cracks it", test_armored_slime)
+	await _test("bat flies, telegraphs and dives at the player", test_bat_dive)
+	await _test("bolts curve up to hit bats", test_bolts_seek_bats)
+	await _test("power-kicked enemies take double magic damage (juggle)", test_juggle)
+	await _test("new enemies spawn from room letters", test_new_enemy_letters)
+	await _test("sign text shows the current keys", test_sign_prompts)
 	GameManager.floor_number = 1
 	SaveManager.delete_save()
 	print("\n%d passed, %d failed" % [_passed, _failed])
@@ -1098,7 +1109,8 @@ func _check_floor_reachable(floor_number: int) -> void:
 				if ch == "=" and _can_stand(rows, r - 1, c, true):
 					check(after_gates.has(Vector2i(r - 1, c)), "%s: platform at row %d col %d is out of reach" % [id, r, c])
 					continue
-				var target := ch == "C" or ch == "S" or ch == "F" or ch == "g" or ch == "s" or ch == "B" or ch == "X" or (ch >= "1" and ch <= "9")
+				# Ground enemies must be reachable; bats (v) fly to you.
+				var target := ch in ["C", "S", "F", "g", "s", "h", "a", "B", "X"] or (ch >= "1" and ch <= "9")
 				if not target:
 					continue
 				# Chests may sit behind a trial gate; everything else must be
@@ -2942,3 +2954,157 @@ func test_full_run() -> void:
 	GameManager.floor_number = 1
 	SaveManager.delete_save()
 	GameManager.reset_progress()
+
+
+# --- Milestone 9: switching matters -------------------------------------------
+
+func spawn_scene(w: Node2D, scene: PackedScene, pos: Vector2, ai := false) -> EnemyBase:
+	var e := scene.instantiate() as EnemyBase
+	e.position = pos
+	e.ai_enabled = ai
+	w.add_child(e)
+	return e
+
+
+func test_shield_goblin() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_scene(w, SHIELD_GOBLIN_SCENE, Vector2(40, -20)) as ShieldGoblin
+	g.facing = -1  # shield toward the player
+	await frames(5)
+	check_eq(g.weakness(), EnemyBase.Weakness.MAGIC, "shows the magic weakness")
+	var resisted := [0]
+	g.resisted.connect(func(_e: EnemyBase, _h: Hit) -> void: resisted[0] += 1)
+	p.combat.kick_combo.press()
+	await frames(20)
+	check_eq(g.health, g.max_health, "front kick blocked")
+	check_eq(resisted[0], 1, "resisted signal")
+	check(Audio.history.has("block"), "clank sound")
+	g.take_hit(Hit.new(12.0, Vector2.ZERO, p, PackedStringArray(["magic"])))
+	check_eq(g.health, g.max_health - 12.0, "magic gets through")
+	g.facing = 1  # turned away: kicks from behind land
+	g.take_hit(Hit.new(10.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	check_eq(g.health, g.max_health - 22.0, "kick from behind lands")
+	g.facing = -1
+	g.take_hit(Hit.new(20.0, Vector2.ZERO, p, PackedStringArray(["explosion", "kick", "heavy"])))
+	check_eq(g.health, g.max_health - 42.0, "explosions ignore the shield")
+
+
+func test_armored_slime() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var s := spawn_scene(w, ARMORED_SLIME_SCENE, Vector2(60, -13)) as ArmoredSlime
+	await frames(5)
+	check_eq(s.weakness(), EnemyBase.Weakness.KICKS, "shelled: weak to kicks")
+	s.take_hit(Hit.new(12.0, Vector2.ZERO, p, PackedStringArray(["magic"])))
+	check_eq(s.health, s.max_health, "magic splashes off the shell")
+	s.take_hit(Hit.new(10.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	check_eq(s.health, s.max_health - 5.0, "light kicks are halved")
+	check(s.shelled, "light kick doesn't crack it")
+	var cracked := [0]
+	GameManager.shell_cracked.connect(func(_e: EnemyBase) -> void: cracked[0] += 1, CONNECT_ONE_SHOT)
+	s.take_hit(Hit.new(20.0, Vector2.ZERO, p, PackedStringArray(["kick", "heavy"])))
+	check(not s.shelled, "heavy kick cracks the shell")
+	check_eq(cracked[0], 1, "shell_cracked emitted")
+	check_eq(s.health, s.max_health - 25.0, "heavy kick does full damage")
+	check_eq(s.weakness(), EnemyBase.Weakness.MAGIC, "cracked: weak to magic")
+	s.take_hit(Hit.new(10.0, Vector2.ZERO, p, PackedStringArray(["magic"])))
+	check_eq(s.health, s.max_health - 40.0, "magic deals 1.5x once cracked")
+
+
+func test_bat_dive() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	p.health._invuln = 0.0
+	var b := spawn_scene(w, BAT_SCENE, Vector2(150, -150), true) as Bat
+	var start_y := b.global_position.y
+	await frames(secs(0.5))
+	check(b.is_engaged, "bat spotted the player")
+	check(absf(b.global_position.y - start_y) < 80.0 and b.global_position.y < -80.0, "bat stays airborne (y=%.0f)" % b.global_position.y)
+	var saw_windup := [false]
+	var hurt := [false]
+	p.health.damaged.connect(func(_a: float) -> void: hurt[0] = true)
+	for i in secs(5.0):
+		await get_tree().physics_frame
+		if b.state == Bat.State.WINDUP:
+			saw_windup[0] = true
+		if hurt[0]:
+			break
+	check(saw_windup[0], "dive was telegraphed")
+	check(hurt[0], "dive hit the player")
+	b.take_hit(Hit.new(999.0))
+	await frames(secs(0.4))
+	check(b.global_position.y > start_y, "dead bat falls")
+
+
+func test_bolts_seek_bats() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var b := spawn_scene(w, BAT_SCENE, Vector2(220, -110)) as Bat
+	await frames(3)
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(secs(0.8))
+	check(b.health < b.max_health, "the bolt curved up into the bat (hp %.0f)" % b.health)
+
+
+func test_juggle() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 40.0)
+	await frames(5)
+	var juggles := [0]
+	var cb := func(_e: EnemyBase) -> void: juggles[0] += 1
+	GameManager.enemy_juggled.connect(cb)
+	g.take_hit(Hit.new(10.0, Vector2(300, -300), p, PackedStringArray(["kick", "heavy", "charged"])))
+	check(g.launched, "heavy kick launches")
+	await frames(4)
+	check(g.is_juggled(), "airborne and juggleable")
+	var before := g.health
+	g.take_hit(Hit.new(12.0, Vector2.ZERO, p, PackedStringArray(["magic"])))
+	check_eq(before - g.health, 24.0, "magic deals double")
+	check_eq(juggles[0], 1, "juggle reported")
+	await frames(secs(1.2))
+	check(not g.is_juggled(), "landing ends the juggle")
+	before = g.health
+	g.take_hit(Hit.new(12.0, Vector2.ZERO, p, PackedStringArray(["magic"])))
+	check_eq(before - g.health, 12.0, "normal damage on the ground")
+	GameManager.enemy_juggled.disconnect(cb)
+	# Real flow: Main's Dungeon AI awards Juggler.
+	var m := spawn_main()
+	var mp := player_of(m)
+	var ai: DungeonAIManager = m.get("dungeon_ai")
+	await frames(2)
+	var g2 := spawn_goblin(rooms_of(m).current_room, mp.position.x + 60.0)
+	g2.global_position.y = mp.global_position.y
+	await frames(3)
+	g2.take_hit(Hit.new(5.0, Vector2(200, -300), mp, PackedStringArray(["kick", "heavy"])))
+	await frames(4)
+	g2.take_hit(Hit.new(5.0, Vector2.ZERO, mp, PackedStringArray(["magic"])))
+	check(ai.history.has(DungeonAIManager.JUGGLER), "Juggler achievement")
+	check(mp.upgrades.boost(PlayerUpgrades.BOOST_DAMAGE) > 0.0, "damage boost granted")
+
+
+func test_new_enemy_letters() -> void:
+	var w := world()
+	var room := RoomBase.new()
+	room.room_type = RoomBase.RoomType.COMBAT
+	room.layout = "##########\n#........#\n#E.h.a.v.#\n##########"
+	w.add_child(room)
+	var kinds := {}
+	for e in room.required_enemies:
+		kinds[e.get_script().get_global_name()] = true
+	check(kinds.has("ShieldGoblin") and kinds.has("ArmoredSlime") and kinds.has("Bat"), "h, a and v spawn (%s)" % [kinds.keys()])
+	check_eq(room.required_enemies.size(), 3, "all three are required kills")
+
+
+func test_sign_prompts() -> void:
+	Settings.using_controller = false
+	var keyboard := Settings.format_prompts("{jump} jumps, {switch_mode} switches")
+	check_eq(keyboard, "%s jumps, %s switches" % [Settings.key_label("jump"), Settings.key_label("switch_mode")], "keyboard keys")
+	Settings.using_controller = true
+	var pad := Settings.format_prompts("{jump} jumps")
+	check_eq(pad, "%s jumps" % Settings.prompt_label("jump"), "controller button")
+	check(pad != keyboard.split(",")[0], "differs from the keyboard prompt")
+	Settings.using_controller = false
+	check_eq(Settings.format_prompts("{not_an_action} stays"), "{not_an_action} stays", "unknown tokens are left alone")

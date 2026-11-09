@@ -8,6 +8,16 @@ signal died(enemy: EnemyBase)
 signal engaged_changed(enemy: EnemyBase, is_engaged: bool)
 ## This enemy was knocked into `other` hard enough to hurt both.
 signal collided(enemy: EnemyBase, other: EnemyBase)
+## A hit did nothing because of this enemy's defence (shield, shell...).
+signal resisted(enemy: EnemyBase, hit: Hit)
+
+## Weakness icons shown over enemies that want a particular combat mode.
+enum Weakness { NONE, KICKS, MAGIC }
+
+## Magic hits on a launched (power-kicked, airborne) enemy deal this much more.
+const JUGGLE_MULTIPLIER := 2.0
+## Kicks with at least this much upward knockback launch an enemy for juggling.
+const LAUNCH_MIN_LIFT := 150.0
 
 ## Name used in Dungeon AI announcements.
 @export var display_name := "Goblin"
@@ -15,6 +25,8 @@ signal collided(enemy: EnemyBase, other: EnemyBase)
 @export var body_size := Vector2(26, 40)
 @export var gravity := 1500.0
 @export var max_fall_speed := 900.0
+## Flying enemies ignore gravity (until they die) and recover from knockback in the air.
+@export var flying := false
 @export_group("Knockback")
 @export var knockback_multiplier := 1.0
 ## Minimum time an enemy stays in knockback (it also waits to land).
@@ -49,6 +61,11 @@ var _player: Player
 ## Enemies already hit during the current knockback (no repeat damage).
 var _collided := {}
 var rng := RandomNumberGenerator.new()
+## Knocked into the air by a heavy kick: magic hits juggle it for bonus damage.
+var launched := false
+var _launch_t := 0.0
+## Briefly enlarges the weakness icon after a resisted hit.
+var _weak_flash := 0.0
 
 const DEATH_DURATION := 0.7
 const POTION_SCENE := preload("res://scenes/pickups/PotionPickup.tscn")
@@ -68,7 +85,12 @@ func get_player() -> Player:
 
 func _physics_process(delta: float) -> void:
 	_flash_t = maxf(_flash_t - delta, 0.0)
-	if not is_on_floor():
+	_weak_flash = maxf(_weak_flash - delta, 0.0)
+	if launched:
+		_launch_t += delta
+		if _launch_t > 0.1 and (is_on_floor() or (flying and not in_knockback)):
+			launched = false
+	if not is_on_floor() and (not flying or is_dead):
 		velocity.y = minf(velocity.y + gravity * delta, max_fall_speed)
 
 	if is_dead:
@@ -85,7 +107,9 @@ func _physics_process(delta: float) -> void:
 		if absf(velocity.x) >= collision_min_speed:
 			_check_enemy_collisions()
 		_knockback_t -= delta
-		if is_on_floor():
+		if flying:
+			velocity = velocity.move_toward(Vector2.ZERO, knockback_friction * delta)
+		if is_on_floor() or flying:
 			velocity.x = move_toward(velocity.x, 0.0, knockback_friction * delta)
 			if _knockback_t <= 0.0:
 				in_knockback = false
@@ -103,6 +127,19 @@ func take_hit(hit: Hit) -> void:
 	if is_dead:
 		return
 	var amount := maxf(hit.damage, 0.0)
+	var mult := hit_multiplier(hit)
+	if mult <= 0.0:
+		_resist(hit)
+		return
+	amount *= mult
+	if hit.has_tag("magic") and is_juggled():
+		amount *= juggle_multiplier(hit)
+		if not hit.has_tag("juggle"):
+			var tags := hit.tags
+			tags.append("juggle")
+			hit.tags = tags
+		Fx.text(global_position + Vector2(0, -body_size.y * 0.5 - 30), "JUGGLE!", Color("#ff8af0"), 17)
+		GameManager.enemy_juggled.emit(self)
 	last_hit = hit
 	health = maxf(health - amount, 0.0)
 	_flash_t = 0.1
@@ -118,6 +155,49 @@ func take_hit(hit: Hit) -> void:
 	if is_armored() and amount < stagger_threshold:
 		return
 	apply_knockback(hit.knockback)
+	if hit.has_tag("kick") and hit.has_tag("heavy") and hit.knockback.y <= -LAUNCH_MIN_LIFT:
+		launched = true
+		_launch_t = 0.0
+
+
+## Damage multiplier for a hit (0 = fully resisted). Subclasses add shields,
+## shells and soft spots.
+func hit_multiplier(_hit: Hit) -> float:
+	return 1.0
+
+
+## The combat mode this enemy is weak to right now (drives the icon over it).
+func weakness() -> Weakness:
+	return Weakness.NONE
+
+
+## Text shown when a hit is resisted (e.g. "BLOCKED!").
+func resist_text(_hit: Hit) -> String:
+	return "BLOCKED!"
+
+
+func is_juggled() -> bool:
+	return launched and not is_dead and not is_on_floor()
+
+
+func juggle_multiplier(hit: Hit) -> float:
+	var p := hit.source as Player
+	if p and p.combat:
+		return p.combat.juggle_multiplier
+	return JUGGLE_MULTIPLIER
+
+
+func _resist(hit: Hit) -> void:
+	_weak_flash = 0.8
+	set_engaged(true)
+	Audio.play("block", -2.0)
+	Fx.text(global_position + Vector2(0, -body_size.y * 0.5 - 14), resist_text(hit), Color("#c8d4e6"), 15)
+	Fx.burst(global_position + Vector2(signf(hit.knockback.x) * -body_size.x * 0.4, 0), Color("#c8d4e6"), 14.0, 0.15)
+	# A little shove so the blow still feels like it connected.
+	if hit.knockback != Vector2.ZERO and not is_armored():
+		apply_knockback(Vector2(hit.knockback.x * 0.3, minf(hit.knockback.y * 0.2, 0.0)))
+	resisted.emit(self, hit)
+	GameManager.enemy_resisted.emit(self, hit)
 
 
 func apply_knockback(knockback: Vector2) -> void:
@@ -210,6 +290,30 @@ func is_wall_ahead(dir: int) -> bool:
 
 func hit_flash() -> float:
 	return _flash_t
+
+
+## Draws the weakness badge (a boot for kicks, a star for magic) centred at
+## `at` in local space. Call from a subclass's _draw().
+func draw_weakness(at: Vector2) -> void:
+	var w := weakness()
+	if w == Weakness.NONE or is_dead:
+		return
+	var s := 1.0 + 0.5 * _weak_flash + 0.06 * sin(Time.get_ticks_msec() * 0.008)
+	var col := PlayerCombat.CARL_COLOR if w == Weakness.KICKS else PlayerCombat.DONUT_COLOR
+	draw_circle(at, 8.0 * s, Color(0, 0, 0, 0.65))
+	draw_circle(at, 6.5 * s, col)
+	if w == Weakness.KICKS:
+		# A little boot.
+		draw_colored_polygon(PackedVector2Array([at + Vector2(-2.5, -4) * s, at + Vector2(1, -4) * s,
+			at + Vector2(1, 0.5) * s, at + Vector2(4, 1) * s, at + Vector2(4, 3.5) * s, at + Vector2(-2.5, 3.5) * s]), Color.WHITE)
+	else:
+		# A four-point sparkle.
+		var pts := PackedVector2Array()
+		for i in 8:
+			var a := i * PI / 4.0 - PI / 2.0
+			var r := 4.5 if i % 2 == 0 else 1.6
+			pts.append(at + Vector2(cos(a), sin(a)) * r * s)
+		draw_colored_polygon(pts, Color.WHITE)
 
 
 func death_progress() -> float:

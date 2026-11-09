@@ -58,8 +58,7 @@ Controller:
   the D-pad/stick, A to confirm and B to go back.
 - Prompts follow the device you last touched: the HUD hints, ability slots
   and "[LT] Open chest" style prompts switch between keyboard keys and
-  controller buttons automatically. (Tutorial sign text always names the
-  keyboard keys.)
+  controller buttons automatically, and so do tutorial signs.
 
 Combat modes:
 
@@ -196,6 +195,25 @@ Floor 2 enemies:
   next to a resting slime safely. They won't hop off ledges or into spike
   pits on their own, but you can kick them in.
 
+Enemies that want a particular mode (Milestone 9):
+
+- An icon over these enemies shows their weakness: an orange **boot** means
+  kicks, a purple **star** means magic. It grows when you hit them the wrong
+  way, along with a "clank" and a BLOCKED message.
+- **Shield Goblin** (Floor 1): kicks from the front clank off its shield.
+  Magic gets through, and so do kicks from behind (jump over it) and
+  explosions. 60 HP.
+- **Cave Bat** (both floors): hovers above you, out of reach of a standing
+  kick, flashes red, then dives at where you were standing (10 damage). Donut's
+  bolts curve up or down toward flying enemies, so magic is the easy answer;
+  a jump kick also works. 20 HP.
+- **Armored Slime** (Floor 2): magic splashes off its shell and light kicks do
+  half damage. A heavy kick (combo finisher, power kick) or an explosion
+  cracks the shell, and then magic does 1.5× damage.
+- **Juggling:** a heavy kick (combo finisher or power kick) launches an
+  enemy. Magic that hits it before it lands does **double damage** and
+  earns the Juggler achievement.
+
 The Mutating Slime (Floor 2 boss):
 
 - Same rules as the Brute: wakes when you walk in, boss bar, no auto-heal,
@@ -318,13 +336,16 @@ view. Legend:
 ```text
 #  solid      =  one-way platform   G  gate (opens when the trial is done)
 E  entrance   1-9  exit door N      g  Goblin     s  Slime
+h  Shield Goblin    a  Armored Slime    v  Cave Bat (flies; spawns in mid-air)
 C  chest      F  fountain           S  switch     i  sign     B  boss spawn
 X  stairs to the next floor (open once the boss is beaten)
 ^  spikes (replace the top floor row to make a 1-tile-deep spike pit)
 x  explosive barrel   b  crate (holds a potion)   W  cracked wall (solid until broken)
 ```
 
-Signs take their text from `signs`, in reading order. Exit door N leads to
+Signs take their text from `signs`, in reading order. Write `{jump}`,
+`{switch_mode}` and so on (any input action name) to show the player's
+current key or controller button. Exit door N leads to
 `exits[N-1]`. A full jump clears 3 tiles, so keep steps at 3 tiles or less.
 Running jumps reach about 5 tiles across (4 at full height), so pits can be
 up to 4 tiles wide. `make test` checks every room's map: it confirms each

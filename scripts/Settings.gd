@@ -133,6 +133,20 @@ func reset_keys() -> void:
 
 
 ## The keyboard key currently bound to `action`, as text (e.g. "Space").
+## Replaces {action_name} tokens with the current key or controller button,
+## e.g. "{jump} jumps" -> "Space jumps" or "A jumps".
+func format_prompts(text: String) -> String:
+	if not "{" in text:
+		return text
+	var re := RegEx.create_from_string("\\{([a-z_]+)\\}")
+	var out := text
+	for m in re.search_all(text):
+		var action := m.get_string(1)
+		if InputMap.has_action(action):
+			out = out.replace(m.get_string(0), prompt_label(action))
+	return out
+
+
 func key_label(action: String) -> String:
 	for event in InputMap.action_get_events(action):
 		var key := event as InputEventKey

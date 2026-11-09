@@ -27,6 +27,8 @@ var kick_damage_multiplier := 1.0
 var magic_damage_multiplier := 1.0
 var knockback_multiplier := 1.0
 var cooldown_multiplier := 1.0
+## Damage multiplier for magic hits on launched enemies (upgrades raise it).
+var juggle_multiplier := EnemyBase.JUGGLE_MULTIPLIER
 
 var mode := Mode.CARL
 ## A switch requested during a windup, applied once the attack fires.

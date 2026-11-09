@@ -10,7 +10,7 @@ room_type = 3
 trial = 1
 trial_hint = "Climb to the chest"
 exits = PackedStringArray("F1-05")
-signs = PackedStringArray("Challenge rooms end in a reward. Reach the chest and press E to open it.")
+signs = PackedStringArray("Challenge rooms end in a reward. Reach the chest and press {interact} to open it.")
 layout = "########################################
 #......................................#
 #......................................#

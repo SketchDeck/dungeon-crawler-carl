@@ -20,6 +20,7 @@ signal achievement_unlocked(id: StringName, entry: Dictionary)
 const COLLISION := &"enemy_collision"
 const ENVIRONMENT_KILL := &"environment_kill"
 const UNTOUCHABLE := &"untouchable"
+const JUGGLER := &"juggler"
 
 @export var boost_rooms := 3
 @export var knockback_boost := 0.5
@@ -47,6 +48,7 @@ func setup(p_player: Player, p_room_manager: RoomManager, p_hud: HUD) -> void:
 	player.health.damaged.connect(_on_player_damaged)
 	GameManager.enemy_collided.connect(_on_enemy_collided)
 	GameManager.enemy_died.connect(_on_enemy_died)
+	GameManager.enemy_juggled.connect(_on_enemy_juggled)
 
 
 ## Forget per-run state (floor restart / next floor). Boosts are cleared with
@@ -92,6 +94,14 @@ func _on_enemy_died(enemy: EnemyBase) -> void:
 	})
 
 
+func _on_enemy_juggled(enemy: EnemyBase) -> void:
+	award(JUGGLER, {
+		"title": "JUGGLER!",
+		"description": "Carl punted a %s into the air and Donut zapped it before it landed. Teamwork! Disgusting, beautiful teamwork." % enemy.display_name,
+		"reward": "Reward: +%d%% damage for this room and the next %d." % [roundi(damage_boost * 100.0), boost_rooms],
+	})
+
+
 func _on_encounter_cleared(room: RoomBase) -> void:
 	if room.room_type != RoomBase.RoomType.COMBAT or _hurt_in_encounter:
 		return
@@ -112,7 +122,7 @@ func award(id: StringName, entry: Dictionary) -> bool:
 	match id:
 		COLLISION:
 			player.upgrades.add_boost(PlayerUpgrades.BOOST_KNOCKBACK, knockback_boost, boost_rooms)
-		ENVIRONMENT_KILL:
+		ENVIRONMENT_KILL, JUGGLER:
 			player.upgrades.add_boost(PlayerUpgrades.BOOST_DAMAGE, damage_boost, boost_rooms)
 		UNTOUCHABLE:
 			player.health.heal(room_clear_heal)

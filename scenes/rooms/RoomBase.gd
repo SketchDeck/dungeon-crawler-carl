@@ -8,6 +8,8 @@ extends Node2D
 ##   E  entrance / player spawn
 ##   1-9 exit door N (leads to exits[N-1])
 ##   g  Goblin   s  Slime      C  reward chest       F  healing fountain
+##   h  Shield Goblin (blocks kicks from the front)   a  Armored Slime (shell blocks magic)
+##   v  Cave Bat (flies; spawns where the v is)
 ##   S  trial switch           i  sign (texts from `signs`, in reading order)
 ##   B  boss spawn (boss rooms)    X  stairs to the next floor (open once the boss is beaten)
 ##   ^  spikes (put them in a 1-tile-deep pit)
@@ -34,6 +36,9 @@ enum Trial { NONE, REACH, SWITCHES, DEFEAT }
 const TILE := 32
 const GOBLIN_SCENE := preload("res://scenes/enemies/Goblin.tscn")
 const SLIME_SCENE := preload("res://scenes/enemies/Slime.tscn")
+const SHIELD_GOBLIN_SCENE := preload("res://scenes/enemies/ShieldGoblin.tscn")
+const ARMORED_SLIME_SCENE := preload("res://scenes/enemies/ArmoredSlime.tscn")
+const BAT_SCENE := preload("res://scenes/enemies/Bat.tscn")
 
 @export var room_id := ""
 @export var display_name := ""
@@ -281,6 +286,15 @@ func _build_from_layout() -> void:
 				"s":
 					if spawn_enemies:
 						_spawn_enemy(SLIME_SCENE, foot - Vector2(0, 12))
+				"h":
+					if spawn_enemies:
+						_spawn_enemy(SHIELD_GOBLIN_SCENE, foot - Vector2(0, 20))
+				"a":
+					if spawn_enemies:
+						_spawn_enemy(ARMORED_SLIME_SCENE, foot - Vector2(0, 13))
+				"v":
+					if spawn_enemies:
+						_spawn_enemy(BAT_SCENE, foot - Vector2(0, TILE * 0.5))
 				"C":
 					chest = Chest.new()
 					chest.position = foot
