@@ -74,9 +74,58 @@ func _ready() -> void:
 	upgrade_selection.chosen.connect(_on_upgrade_chosen)
 	GameManager.ability_unlocked.connect(_on_ability_unlocked)
 	room_manager.room_entered.connect(_on_room_entered_music)
+	GameManager.enemy_died.connect(_on_enemy_died_modifiers)
 	GameManager.reset_lives()
-	run_stats.reset(GameManager.floor_number)
-	room_manager.start_floor(GameManager.floor_number)
+	_begin_floor(false)
+
+
+## Starts the current floor: picks this run's sponsor events (a replay of a
+## beaten floor gets one; Hard mode adds one; the Daily Run gets two from the
+## day's seed), applies them, and loads the entrance.
+func _begin_floor(keep_boxes: bool) -> void:
+	var number := GameManager.floor_number
+	var mods: Array[StringName] = []
+	var run_seed := -1
+	if GameManager.daily_run:
+		run_seed = GameManager.daily_seed(GameManager.today()) + number
+		var daily_rng := RandomNumberGenerator.new()
+		daily_rng.seed = run_seed
+		mods = Modifiers.pick(daily_rng, 2)
+	elif GameManager.hard_mode or GameManager.is_floor_completed(number):
+		mods = Modifiers.pick(_rng, 1)
+	set_modifiers(mods, GameManager.hard_mode)
+	run_stats.reset(number, keep_boxes)
+	room_manager.start_floor(number, run_seed)
+	if not mods.is_empty() or GameManager.hard_mode:
+		var lines: Array[String] = []
+		for id in mods:
+			lines.append("%s: %s" % [Modifiers.display_name(id), Modifiers.description(id)])
+		hud.show_banner("SPONSOR EVENT" if not mods.is_empty() else "HARD MODE",
+			"  ·  ".join(lines) if not lines.is_empty() else "Tougher enemies, harder hits, more viewers.", Color("#ff8af0"))
+
+
+## Applies floor modifiers to the room manager, the player and the score.
+func set_modifiers(mods: Array[StringName], hard: bool) -> void:
+	room_manager.modifiers = mods
+	room_manager.hard_mode = hard
+	player.health.incoming_multiplier = Modifiers.damage_taken_multiplier(mods, hard)
+	player.combat.modifier_damage_multiplier = Modifiers.damage_dealt_multiplier(mods)
+	player.upgrades.refresh()
+	run_stats.viewer_multiplier = Modifiers.viewer_multiplier(mods, hard)
+	hud.set_modifiers(Modifiers.summary(mods, hard))
+
+
+func _on_enemy_died_modifiers(enemy: EnemyBase) -> void:
+	if room_manager.modifiers.has(Modifiers.EXPLOSIVE) and not enemy is BossBase:
+		_modifier_blast.call_deferred(enemy.global_position)
+
+
+func _modifier_blast(at: Vector2) -> void:
+	if not is_inside_tree():
+		return
+	Explosion.detonate(room_slot, at, Modifiers.EXPLOSION_RADIUS, Modifiers.EXPLOSION_ENEMY_DAMAGE, 300.0,
+		HitQuery.LAYER_ENEMIES | HitQuery.LAYER_PLAYER | HitQuery.LAYER_HITTABLE, null,
+		PackedStringArray(["explosion", "hazard"]), Color("#ff5a3c"), Modifiers.EXPLOSION_PLAYER_DAMAGE)
 
 
 ## Floor music, switching to the boss theme while a boss fight is on.
@@ -123,9 +172,8 @@ func restart_floor() -> void:
 	player.upgrades.clear()
 	dungeon_ai.reset()
 	_new_unlocks.clear()
-	run_stats.reset(GameManager.floor_number)
 	player.respawn(player.global_position)
-	room_manager.start_floor(GameManager.floor_number)
+	_begin_floor(false)
 
 
 ## Back to the title screen. Completed floors and unlocks are already saved.
@@ -142,6 +190,9 @@ func _on_floor_exit_reached(floor_number: int) -> void:
 	run_stats.timing = false
 	var summary := run_stats.summary()
 	summary["new_best"] = GameManager.record_run(summary)
+	if GameManager.daily_run:
+		summary["daily"] = true
+		summary["daily_best"] = GameManager.record_daily(GameManager.today(), run_stats.viewers)
 	floor_complete.show_screen(floor_number, GameManager.lives, player.potions.count, _new_unlocks, summary)
 
 
@@ -225,9 +276,8 @@ func continue_to_next_floor() -> void:
 	player.upgrades.clear()
 	dungeon_ai.reset()
 	_new_unlocks.clear()
-	run_stats.reset(GameManager.floor_number, true)
 	player.respawn(player.global_position)
-	room_manager.start_floor(GameManager.floor_number)
+	_begin_floor(true)
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -187,6 +187,31 @@ Dungeon AI achievements, loot boxes and viewers (Milestone 11):
   haven't earned show as ???), Carl's hats and your best runs. Achievements,
   hats and best runs survive New Game.
 
+Replayability (Milestone 12):
+
+- **Room variants:** most combat rooms have two layouts with the same exits.
+  Each floor run picks one per room at random, so routes stay the same but
+  rooms play differently.
+- **Random spawns:** `?` in a layout spawns a random enemy from the floor's
+  pool (Floor 1: goblins, shield goblins, bats; Floor 2: slimes, armored
+  slimes, bats, goblins). A restarted room spawns the same enemies.
+- **Sponsor events:** replaying a floor you've already beaten adds one random
+  floor modifier, named in a banner and under the viewer count. Each one
+  multiplies viewers:
+  - Hasty Horde: enemies move and attack 30% faster (x1.3).
+  - Dry Spell: no potion drops (x1.3).
+  - Glass Cannon: you deal and take 50% more damage (x1.4).
+  - Explosive Personality: enemies explode when they die, hurting
+    everything nearby, you included (x1.3).
+  - Beefy Boys: enemies have 50% more health (x1.25).
+- **Hard mode** (main menu toggle, unlocked by beating Floor 2): enemies and
+  bosses have 50% more health, you take 30% more damage, every floor gets a
+  sponsor event, and viewers are x1.5.
+- **Daily Run** (main menu, unlocked by beating Floor 1): Floor 1 with
+  room picks and two sponsor events chosen by the date, the same for
+  everyone that day. Retries replay the same rooms and events. Your best
+  viewer count for each day is saved.
+
 Rooms and lives:
 
 - **Combat rooms** lock their exits until every enemy is dead. A cleared room
@@ -382,11 +407,16 @@ view. Legend:
 #  solid      =  one-way platform   G  gate (opens when the trial is done)
 E  entrance   1-9  exit door N      g  Goblin     s  Slime
 h  Shield Goblin    a  Armored Slime    v  Cave Bat (flies; spawns in mid-air)
+?  random enemy from the floor's pool (FloorData "enemies")
 C  chest      F  fountain           S  switch     i  sign     B  boss spawn
 X  stairs to the next floor (open once the boss is beaten)
 ^  spikes (replace the top floor row to make a 1-tile-deep spike pit)
 x  explosive barrel   b  crate (holds a potion)   W  cracked wall (solid until broken)
 ```
+
+To add a variant of a room, make another scene with the same `room_id`,
+`room_type` and `exits`, and list both paths for that id in
+`scripts/FloorData.gd`. `make test` checks every variant.
 
 Signs take their text from `signs`, in reading order. Write `{jump}`,
 `{switch_mode}` and so on (any input action name) to show the player's

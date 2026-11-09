@@ -327,6 +327,11 @@ func _ai(_delta: float) -> void:
 	pass
 
 
+## Hasty Horde: speed up movement and attacks by `factor`.
+func apply_haste(_factor: float) -> void:
+	pass
+
+
 ## True while the enemy shrugs off light hits (no knockback/interrupt).
 func is_armored() -> bool:
 	return false

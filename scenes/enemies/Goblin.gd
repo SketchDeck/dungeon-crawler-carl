@@ -144,6 +144,14 @@ func _strike() -> void:
 	Fx.slash(world_center, facing, 26.0, Color("#ff6040"), 0.15)
 
 
+func apply_haste(factor: float) -> void:
+	patrol_speed *= factor
+	chase_speed *= factor
+	attack_windup /= factor
+	attack_recovery /= factor
+	attack_cooldown /= factor
+
+
 func is_armored() -> bool:
 	return state == State.WINDUP
 

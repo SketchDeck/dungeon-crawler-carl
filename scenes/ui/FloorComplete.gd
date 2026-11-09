@@ -31,6 +31,8 @@ func show_screen(floor_number: int, lives: int, potions: int, unlocks: Array[Str
 	if not summary.is_empty():
 		lines.append("")
 		lines.append("GRADE %s%s" % [summary["grade"], "   ·   NEW BEST!" if summary.get("new_best", false) else ""])
+		if summary.get("daily", false):
+			lines.append("Daily Run %s%s" % [GameManager.today(), "   ·   best today!" if summary.get("daily_best", false) else ""])
 		lines.append("Viewers: %d   ·   Time: %s   ·   Kills: %d" % [summary["viewers"], RunStats.format_time(summary["time"]),
 			summary["kills"]])
 		lines.append("Damage taken: %d   ·   Deaths: %d   ·   Potions drunk: %d" % [roundi(summary["damage_taken"]),

@@ -26,6 +26,14 @@ var current_room_id := ""
 ## room id -> persistent state Dictionary
 var room_states := {}
 var transitioning := false
+## This floor run's picks: room id -> variant scene path, and room id -> seed
+## for `?` spawn markers (so a restarted room spawns the same enemies).
+var room_variants := {}
+var room_seeds := {}
+## Active floor modifiers and Hard mode (see Modifiers.gd).
+var modifiers: Array[StringName] = []
+var hard_mode := false
+var rng := RandomNumberGenerator.new()
 
 var player: Player
 var room_slot: Node
@@ -38,11 +46,23 @@ func setup(p_player: Player, p_room_slot: Node, p_hud: HUD = null) -> void:
 	hud = p_hud
 
 
-## Starts (or restarts) a floor from its entrance with fresh room progress.
-func start_floor(number: int) -> void:
+## Starts (or restarts) a floor from its entrance with fresh room progress,
+## picking a variant for each room. `run_seed` >= 0 makes the picks repeatable
+## (Daily Run); otherwise they're random.
+func start_floor(number: int, run_seed := -1) -> void:
 	floor_number = number
 	_unload_current_room()
 	room_states.clear()
+	if run_seed >= 0:
+		rng.seed = run_seed
+	else:
+		rng.randomize()
+	room_variants.clear()
+	room_seeds.clear()
+	for id: String in FloorData.room_ids(number):
+		var paths := FloorData.room_scene_paths(number, id)
+		room_variants[id] = paths[rng.randi_range(0, paths.size() - 1)]
+		room_seeds[id] = rng.randi()
 	load_room(FloorData.start_room(number))
 	floor_started.emit(number)
 
@@ -86,9 +106,14 @@ func load_room(room_id: String) -> RoomBase:
 	_store_current_state()
 	_unload_current_room()
 
-	var scene := load(FloorData.room_scene_path(floor_number, room_id)) as PackedScene
+	var path: String = room_variants.get(room_id, FloorData.room_scene_path(floor_number, room_id))
+	var scene := load(path) as PackedScene
 	var room := scene.instantiate() as RoomBase
 	room.state = (room_states.get(room_id, {}) as Dictionary).duplicate()
+	room.enemy_pool = FloorData.enemy_pool(floor_number)
+	room.spawn_seed = room_seeds.get(room_id, 0)
+	room.modifiers = modifiers
+	room.hard_mode = hard_mode
 	room_slot.add_child(room)
 	room.exit_requested.connect(request_exit)
 	room.state_changed.connect(_on_room_state_changed.bind(room_id))

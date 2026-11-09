@@ -151,6 +151,14 @@ func _disengage() -> void:
 	state = State.IDLE
 
 
+func apply_haste(factor: float) -> void:
+	stalk_speed *= factor
+	dive_speed *= factor
+	stalk_time /= factor
+	windup_time /= factor
+	recover_time /= factor
+
+
 func is_telegraphing() -> bool:
 	return state == State.WINDUP and not is_dead
 

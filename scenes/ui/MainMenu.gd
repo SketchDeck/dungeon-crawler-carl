@@ -15,6 +15,8 @@ var continue_button: Button
 var new_game_button: Button
 var settings_button: Button
 var extras_button: Button
+var daily_button: Button
+var hard_mode_toggle: CheckButton
 var quit_button: Button
 var floor_buttons: Array[Button] = []
 
@@ -63,6 +65,12 @@ func _ready() -> void:
 	_floor_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_floor_row.add_theme_constant_override("separation", 8)
 	_menu.add_child(_floor_row)
+	daily_button = _button("Daily Run", start_daily_run)
+	hard_mode_toggle = CheckButton.new()
+	hard_mode_toggle.text = "Hard mode (tougher enemies, a sponsor event every floor, x1.5 viewers)"
+	hard_mode_toggle.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	hard_mode_toggle.toggled.connect(func(on: bool) -> void: GameManager.set_hard_mode(on))
+	_menu.add_child(hard_mode_toggle)
 	new_game_button = _button("New Game", _on_new_game)
 	extras_button = _button("Extras", _on_extras)
 	settings_button = _button("Settings", _on_settings)
@@ -148,6 +156,13 @@ func refresh() -> void:
 			b.pressed.connect(start_floor.bind(f))
 			_floor_row.add_child(b)
 			floor_buttons.append(b)
+	daily_button.visible = GameManager.can_play_daily()
+	daily_button.text = "Daily Run - %s" % GameManager.today()
+	var daily_best := int(GameManager.daily_best.get(GameManager.today(), -1))
+	if daily_best >= 0:
+		daily_button.text += " (best %d viewers)" % daily_best
+	hard_mode_toggle.visible = GameManager.can_use_hard_mode()
+	hard_mode_toggle.set_pressed_no_signal(GameManager.hard_mode)
 	(continue_button if can_continue else new_game_button).grab_focus()
 
 
@@ -173,8 +188,15 @@ func start_new_game() -> void:
 	start_floor(1)
 
 
+## Today's Daily Run: Floor 1 with the day's room picks and two sponsor
+## events, the same for everyone. Its best score is saved per day.
+func start_daily_run() -> void:
+	start_floor(1, true)
+
+
 ## Starts a fresh run of a floor (3 lives, 3 potions, no upgrades).
-func start_floor(floor_number: int) -> void:
+func start_floor(floor_number: int, daily := false) -> void:
+	GameManager.daily_run = daily
 	GameManager.floor_number = floor_number
 	GameManager.reset_lives()
 	_go(GAME_SCENE)

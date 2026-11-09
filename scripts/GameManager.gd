@@ -52,6 +52,14 @@ var owned_hats: Array[String] = []
 var equipped_hat := ""
 ## Floor number (String) -> {"viewers", "time", "grade"} of the best run.
 var best_runs := {}
+## Date ("YYYY-MM-DD") -> best Daily Run viewers.
+var daily_best := {}
+
+## Hard mode (unlocked by beating Floor 2): tougher enemies, a sponsor event
+## on every floor, more viewers. Saved with progress.
+var hard_mode := false
+## The current run is today's Daily Run (fixed seed, two sponsor events).
+var daily_run := false
 
 
 func _ready() -> void:
@@ -103,6 +111,8 @@ func debug_unlock_all() -> void:
 
 ## Forgets all progress in memory (tests, and New Game in Milestone 8).
 func reset_progress() -> void:
+	hard_mode = false
+	daily_run = false
 	completed_floors.clear()
 	highest_unlocked_floor = 1
 	unlocked_abilities.clear()
@@ -138,6 +148,7 @@ func save_progress() -> void:
 		"completed_floors": completed_floors.duplicate(),
 		"highest_unlocked_floor": highest_unlocked_floor,
 		"unlocked_abilities": abilities,
+		"hard_mode": hard_mode,
 	})
 
 
@@ -156,6 +167,8 @@ func load_progress() -> void:
 	var started: Variant = data.get("game_started", false)
 	# Saves from before the flag existed count as started if they have progress.
 	game_started = (started is bool and started) or not completed_floors.is_empty()
+	var hard: Variant = data.get("hard_mode", false)
+	hard_mode = hard is bool and hard and completed_floors.has(2)
 	var abilities: Variant = data.get("unlocked_abilities", [])
 	if abilities is Array:
 		for a: Variant in abilities:
@@ -222,6 +235,7 @@ func reset_profile() -> void:
 	owned_hats.clear()
 	equipped_hat = ""
 	best_runs.clear()
+	daily_best.clear()
 
 
 func save_profile() -> void:
@@ -230,6 +244,7 @@ func save_profile() -> void:
 		"hats": owned_hats.duplicate(),
 		"equipped_hat": equipped_hat,
 		"best_runs": best_runs.duplicate(true),
+		"daily_best": daily_best.duplicate(),
 	}})
 	profile_changed.emit()
 
@@ -251,6 +266,11 @@ func load_profile() -> void:
 				owned_hats.append(h)
 	var eq: Variant = data.get("equipped_hat", "")
 	equipped_hat = eq if eq is String and owned_hats.has(eq) else ""
+	var daily: Variant = data.get("daily_best", {})
+	if daily is Dictionary:
+		for k: Variant in daily:
+			if k is String and (daily[k] is float or daily[k] is int):
+				daily_best[k] = int(daily[k])
 	var runs: Variant = data.get("best_runs", {})
 	if runs is Dictionary:
 		for k: Variant in runs:
@@ -258,6 +278,37 @@ func load_profile() -> void:
 			if k is String and r is Dictionary:
 				best_runs[k] = {"viewers": int(r.get("viewers", 0)), "time": float(r.get("time", 0.0)),
 					"grade": str(r.get("grade", "D"))}
+
+
+func can_use_hard_mode() -> bool:
+	return completed_floors.has(2)
+
+
+func set_hard_mode(value: bool) -> void:
+	hard_mode = value and can_use_hard_mode()
+	save_progress()
+
+
+static func today() -> String:
+	var d := Time.get_date_dict_from_system()
+	return "%04d-%02d-%02d" % [d["year"], d["month"], d["day"]]
+
+
+## The seed for a day's Daily Run (the same for everyone on that day).
+static func daily_seed(date: String) -> int:
+	return absi(hash("dcc-daily-" + date))
+
+
+func can_play_daily() -> bool:
+	return completed_floors.has(1)
+
+
+func record_daily(date: String, viewers: int) -> bool:
+	if int(daily_best.get(date, -1)) >= viewers:
+		return false
+	daily_best[date] = viewers
+	save_profile()
+	return true
 
 
 func is_floor_completed(number: int) -> bool:

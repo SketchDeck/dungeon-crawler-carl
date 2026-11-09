@@ -60,6 +60,7 @@ var _viewers_gain: Label
 var _viewers_pulse := 0.0
 var _boxes := 0
 var _viewers := 0
+var modifiers_label: Label
 
 
 func _ready() -> void:
@@ -175,9 +176,28 @@ func bind_run(stats: RunStats) -> void:
 	_viewers_gain.add_theme_constant_override("outline_size", 3)
 	_viewers_gain.modulate.a = 0.0
 	add_child(_viewers_gain)
+	modifiers_label = Label.new()
+	modifiers_label.name = "ModifiersLabel"
+	modifiers_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	modifiers_label.offset_left = -456.0
+	modifiers_label.offset_right = -16.0
+	modifiers_label.offset_top = 76.0
+	modifiers_label.offset_bottom = 96.0
+	modifiers_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	modifiers_label.add_theme_font_size_override("font_size", 12)
+	modifiers_label.add_theme_color_override("font_color", Color("#ffb3f5"))
+	modifiers_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	modifiers_label.add_theme_constant_override("outline_size", 3)
+	add_child(modifiers_label)
 	stats.viewers_changed.connect(_on_viewers_changed)
 	stats.boxes_changed.connect(_on_boxes_changed)
 	_on_viewers_changed(stats.viewers, 0)
+
+
+## Active sponsor events / Hard mode, under the viewer count.
+func set_modifiers(text: String) -> void:
+	if modifiers_label:
+		modifiers_label.text = ("SPONSORED: " + text) if text != "" else ""
 
 
 func _on_viewers_changed(viewers: int, gained: int) -> void:

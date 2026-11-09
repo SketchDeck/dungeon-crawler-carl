@@ -209,6 +209,11 @@ func on_new_room() -> void:
 	boosts_changed.emit()
 
 
+## Recomputes every multiplier (e.g. after floor modifiers change).
+func refresh() -> void:
+	_recompute()
+
+
 func total(kind: Upgrade.Kind) -> float:
 	var sum := 0.0
 	for upgrade in active:
@@ -221,8 +226,9 @@ func _recompute() -> void:
 	var p := player()
 	var combat := p.combat
 	var frenzy := amount_of(Upgrade.Kind.SWITCH_FRENZY) if frenzy_left > 0.0 else 0.0
-	combat.kick_damage_multiplier = 1.0 + total(Upgrade.Kind.KICK_DAMAGE) + boost(BOOST_DAMAGE) + frenzy
-	combat.magic_damage_multiplier = 1.0 + total(Upgrade.Kind.MAGIC_DAMAGE) + boost(BOOST_DAMAGE) + frenzy
+	var mod := combat.modifier_damage_multiplier
+	combat.kick_damage_multiplier = (1.0 + total(Upgrade.Kind.KICK_DAMAGE) + boost(BOOST_DAMAGE) + frenzy) * mod
+	combat.magic_damage_multiplier = (1.0 + total(Upgrade.Kind.MAGIC_DAMAGE) + boost(BOOST_DAMAGE) + frenzy) * mod
 	combat.pierce_bolts = has(Upgrade.Kind.PIERCING_BOLTS)
 	combat.twin_bolt_factor = amount_of(Upgrade.Kind.TWIN_BOLTS)
 	combat.kick_wave_damage = amount_of(Upgrade.Kind.KICK_WAVE)

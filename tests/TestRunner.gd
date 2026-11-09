@@ -202,6 +202,14 @@ func _run() -> void:
 	await _test("floor complete shows the run summary and saves the best", test_run_summary)
 	await _test("profile survives reloads and New Game", test_profile_persists)
 	await _test("extras menu shows the trophy case and hats", test_extras_menu)
+	# Milestone 12: replayability.
+	await _test("each floor run picks a variant per room", test_room_variants)
+	await _test("? markers spawn from the floor's pool, the same on a restart", test_random_spawns)
+	await _test("replays add a sponsor event; first runs don't", test_sponsor_events)
+	await _test("modifiers change enemies, damage and viewers", test_modifier_effects)
+	await _test("explosive personality: enemies explode on death", test_modifier_explosive)
+	await _test("hard mode unlocks after Floor 2 and persists", test_hard_mode)
+	await _test("daily run uses the day's seed and two events", test_daily_run)
 	GameManager.floor_number = 1
 	SaveManager.delete_save()
 	print("\n%d passed, %d failed" % [_passed, _failed])
@@ -780,7 +788,18 @@ func spawn_main() -> Node:
 	var p: Player = m.get("player")
 	p.read_input = false
 	p.combat.read_input = false
+	use_default_variants(m)
+	# No sponsor events unless a test asks for them.
+	var none: Array[StringName] = []
+	m.set_modifiers(none, false)
 	return m
+
+
+## Tests expect each room's original layout unless they pick a variant.
+func use_default_variants(m: Node) -> void:
+	var rm := rooms_of(m)
+	for id: String in rm.room_variants:
+		rm.room_variants[id] = FloorData.room_scene_path(rm.floor_number, id)
 
 
 func rooms_of(m: Node) -> RoomManager:
@@ -807,17 +826,26 @@ func _check_floor_graph(floor_number: int, start: String, exits: Dictionary, typ
 	var w := world()
 	for id: String in exits:
 		check(FloorData.has_room(floor_number, id), "%s registered" % id)
-		var room := (load(FloorData.room_scene_path(floor_number, id)) as PackedScene).instantiate() as RoomBase
-		w.add_child(room)
-		check_eq(room.room_id, id, "scene room_id")
-		check_eq(room.room_type, types[id], "%s type" % id)
-		check_eq(Array(room.exits), exits[id], "%s exits" % id)
-		check_eq(room.doors.size(), room.exits.size(), "%s has one door per exit" % id)
-		check(room.get_spawn_point() != room.global_position, "%s has an entrance" % id)
-		for target in room.exits:
-			check(FloorData.has_room(floor_number, target), "%s -> %s exists" % [id, target])
-		room.queue_free()
+		for path: String in FloorData.room_scene_paths(floor_number, id):
+			_check_room_scene(w, floor_number, id, path, exits, types)
 	# Every room is reachable from the entrance by following exits.
+	_check_graph_connected(start, exits)
+
+
+func _check_room_scene(w: Node2D, floor_number: int, id: String, path: String, exits: Dictionary, types: Dictionary) -> void:
+	var room := (load(path) as PackedScene).instantiate() as RoomBase
+	w.add_child(room)
+	check_eq(room.room_id, id, "scene room_id")
+	check_eq(room.room_type, types[id], "%s type" % id)
+	check_eq(Array(room.exits), exits[id], "%s exits" % id)
+	check_eq(room.doors.size(), room.exits.size(), "%s has one door per exit" % id)
+	check(room.get_spawn_point() != room.global_position, "%s has an entrance" % id)
+	for target in room.exits:
+		check(FloorData.has_room(floor_number, target), "%s -> %s exists" % [id, target])
+	room.queue_free()
+
+
+func _check_graph_connected(start: String, exits: Dictionary) -> void:
 	var seen := {start: true}
 	var queue: Array[String] = [start]
 	while not queue.is_empty():
@@ -1116,34 +1144,39 @@ func test_rooms_reachable() -> void:
 
 func _check_floor_reachable(floor_number: int) -> void:
 	for id: String in FloorData.room_ids(floor_number):
-		var room := (load(FloorData.room_scene_path(floor_number, id)) as PackedScene).instantiate() as RoomBase
-		var rows: PackedStringArray = []
-		for line in room.layout.strip_edges().split("\n"):
-			rows.append(line.strip_edges())
-		room.free()
-		var start := Vector2i(-1, -1)
-		for r in rows.size():
-			var c := rows[r].find("E")
-			if c >= 0:
-				start = Vector2i(r, c)
-		var before_gates := _reachable(rows, start, false)
-		var after_gates := _reachable(rows, start, true)
-		for r in rows.size():
-			for c in rows[r].length():
-				var ch := rows[r][c]
-				# Every one-way platform must be standable-on from the entrance
-				# (checked on the cell above it), even with nothing on it.
-				if ch == "=" and _can_stand(rows, r - 1, c, true):
-					check(after_gates.has(Vector2i(r - 1, c)), "%s: platform at row %d col %d is out of reach" % [id, r, c])
-					continue
-				# Ground enemies must be reachable; bats (v) fly to you.
-				var target := ch in ["C", "S", "F", "g", "s", "h", "a", "B", "X"] or (ch >= "1" and ch <= "9")
-				if not target:
-					continue
-				# Chests may sit behind a trial gate; everything else must be
-				# reachable with gates closed.
-				var reach := after_gates if ch == "C" else before_gates
-				check(reach.has(Vector2i(r, c)), "%s: '%s' at row %d col %d is unreachable" % [id, ch, r, c])
+		for path: String in FloorData.room_scene_paths(floor_number, id):
+			_check_room_reachable(path, id)
+
+
+func _check_room_reachable(path: String, id: String) -> void:
+	var room := (load(path) as PackedScene).instantiate() as RoomBase
+	var rows: PackedStringArray = []
+	for line in room.layout.strip_edges().split("\n"):
+		rows.append(line.strip_edges())
+	room.free()
+	var start := Vector2i(-1, -1)
+	for r in rows.size():
+		var c := rows[r].find("E")
+		if c >= 0:
+			start = Vector2i(r, c)
+	var before_gates := _reachable(rows, start, false)
+	var after_gates := _reachable(rows, start, true)
+	for r in rows.size():
+		for c in rows[r].length():
+			var ch := rows[r][c]
+			# Every one-way platform must be standable-on from the entrance
+			# (checked on the cell above it), even with nothing on it.
+			if ch == "=" and _can_stand(rows, r - 1, c, true):
+				check(after_gates.has(Vector2i(r - 1, c)), "%s: platform at row %d col %d is out of reach" % [id, r, c])
+				continue
+			# Ground enemies must be reachable; bats (v) fly to you.
+			var target := ch in ["C", "S", "F", "g", "s", "h", "a", "?", "B", "X"] or (ch >= "1" and ch <= "9")
+			if not target:
+				continue
+			# Chests may sit behind a trial gate; everything else must be
+			# reachable with gates closed.
+			var reach := after_gates if ch == "C" else before_gates
+			check(reach.has(Vector2i(r, c)), "%s: '%s' at row %d col %d is unreachable" % [id, ch, r, c])
 
 
 func test_jump_crosses_pit() -> void:
@@ -3611,4 +3644,193 @@ func test_extras_menu() -> void:
 		if GameManager.HATS.values().has((b as Button).text):
 			hat_names += 1
 	check_eq(hat_names, 1, "one hat to wear")
+	GameManager.reset_profile()
+
+
+# --- Milestone 12: replayability ---------------------------------------------------
+
+func test_room_variants() -> void:
+	var with_variants := 0
+	for f in [1, 2]:
+		for id: String in FloorData.room_ids(f):
+			if FloorData.room_scene_paths(f, id).size() > 1:
+				with_variants += 1
+	check(with_variants >= 8, "most combat rooms have a variant (%d)" % with_variants)
+	var rm := RoomManager.new()
+	add_child(rm)
+	var seen := {}
+	for i in 30:
+		rm.room_variants.clear()
+		rm.rng.randomize()
+		# start_floor needs a player; just repeat its picking logic via a seeded run.
+		rm.rng.seed = i
+		for id: String in FloorData.room_ids(1):
+			var paths := FloorData.room_scene_paths(1, id)
+			rm.room_variants[id] = paths[rm.rng.randi_range(0, paths.size() - 1)]
+		seen[rm.room_variants["F1-07"]] = true
+	check_eq(seen.size(), 2, "both F1-07 layouts come up")
+	rm.queue_free()
+	# A real floor start with a fixed seed is repeatable.
+	var m := spawn_main()
+	var mrm := rooms_of(m)
+	mrm.start_floor(1, 1234)
+	var first := mrm.room_variants.duplicate()
+	mrm.start_floor(1, 1234)
+	check_eq(mrm.room_variants, first, "same seed, same rooms")
+	var differs := false
+	for s in 10:
+		mrm.start_floor(1, 99 + s)
+		if mrm.room_variants != first:
+			differs = true
+	check(differs, "other seeds pick other rooms")
+	mrm.room_variants["F1-07"] = "res://scenes/rooms/floor1/F1_07_Combat_B.tscn"
+	var room := mrm.load_room("F1-07")
+	check_eq(room.display_name, "Last Stand Pits", "variant loaded")
+	check_eq(Array(room.exits), ["F1-08"], "same exits")
+
+
+func test_random_spawns() -> void:
+	var w := world()
+	var kinds := {}
+	for seed_value in 40:
+		var room := RoomBase.new()
+		room.room_type = RoomBase.RoomType.COMBAT
+		room.enemy_pool = ["s", "a", "v"]
+		room.spawn_seed = seed_value
+		room.layout = "##########\n#........#\n#E.?.?...#\n##########"
+		w.add_child(room)
+		for e in room.required_enemies:
+			kinds[e.get_script().get_global_name()] = true
+		check_eq(room.required_enemies.size(), 2, "two ? markers spawn two enemies")
+		room.free()
+	check(kinds.has("Slime") and kinds.has("ArmoredSlime") and kinds.has("Bat") and not kinds.has("Goblin"),
+		"pool respected (%s)" % [kinds.keys()])
+	var a := RoomBase.new()
+	a.room_type = RoomBase.RoomType.COMBAT
+	a.enemy_pool = ["g", "s", "a", "v", "h"]
+	a.spawn_seed = 7
+	a.layout = "##########\n#........#\n#E?????..#\n##########"
+	var b := a.duplicate() as RoomBase
+	b.enemy_pool = a.enemy_pool
+	b.spawn_seed = 7
+	w.add_child(a)
+	w.add_child(b)
+	var names_a := a.required_enemies.map(func(e: EnemyBase) -> String: return e.get_script().get_global_name())
+	var names_b := b.required_enemies.map(func(e: EnemyBase) -> String: return e.get_script().get_global_name())
+	check_eq(names_a, names_b, "same seed spawns the same enemies")
+
+
+func test_sponsor_events() -> void:
+	GameManager.reset_progress()
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	m.restart_floor()
+	check(rm.modifiers.is_empty(), "first run of an unbeaten floor: no sponsor event")
+	GameManager.completed_floors.append(1)
+	m.restart_floor()
+	check_eq(rm.modifiers.size(), 1, "replay of a beaten floor: one event")
+	var stats := stats_of(m)
+	check(stats.viewer_multiplier > 1.0, "events multiply viewers")
+	var hud: HUD = m.get("hud")
+	check(hud.modifiers_label.text.begins_with("SPONSORED"), "HUD names the event")
+	GameManager.reset_progress()
+
+
+func test_modifier_effects() -> void:
+	var g := GOBLIN_SCENE.instantiate() as Goblin
+	var speed := g.chase_speed
+	var mods: Array[StringName] = [Modifiers.HASTY, Modifiers.BEEFY, Modifiers.DRY]
+	Modifiers.apply_to_enemy(g, mods, false)
+	check_eq(g.chase_speed, speed * Modifiers.HASTE, "hasty: faster")
+	check_eq(g.max_health, 50.0 * Modifiers.BEEF, "beefy: more health")
+	check_eq(g.potion_drop_chance, 0.0, "dry spell: no potions")
+	g.free()
+	var h := GOBLIN_SCENE.instantiate() as Goblin
+	Modifiers.apply_to_enemy(h, [] as Array[StringName], true)
+	check_eq(h.max_health, 50.0 * Modifiers.HARD_HEALTH, "hard mode: more health")
+	h.free()
+	var m := spawn_main()
+	var p := player_of(m)
+	await frames(2)
+	var glass: Array[StringName] = [Modifiers.GLASS]
+	m.set_modifiers(glass, false)
+	check_eq(p.combat.kick_damage_multiplier, 1.5, "glass cannon: +50% damage dealt")
+	p.health._invuln = 0.0
+	p.health.take_damage(10.0)
+	check_eq(p.health.current, 85.0, "glass cannon: +50% damage taken")
+	check_eq(stats_of(m).viewer_multiplier, 1.4, "glass cannon viewers")
+	var none: Array[StringName] = []
+	m.set_modifiers(none, false)
+	check_eq(p.combat.kick_damage_multiplier, 1.0, "cleared")
+
+
+func test_modifier_explosive() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var room := rooms_of(m).current_room
+	await frames(2)
+	var boom: Array[StringName] = [Modifiers.EXPLOSIVE]
+	m.set_modifiers(boom, false)
+	var a := spawn_goblin(room, p.global_position.x + 300.0)
+	var b := spawn_goblin(room, p.global_position.x + 340.0)
+	a.global_position.y = p.global_position.y
+	b.global_position.y = p.global_position.y
+	await frames(2)
+	a.take_hit(Hit.new(999.0))
+	await frames(3)
+	check_eq(b.health, 50.0 - Modifiers.EXPLOSION_ENEMY_DAMAGE, "neighbour caught in the blast")
+
+
+func test_hard_mode() -> void:
+	GameManager.reset_progress()
+	GameManager.set_hard_mode(true)
+	check(not GameManager.hard_mode, "locked before beating Floor 2")
+	GameManager.completed_floors.append(2)
+	GameManager.set_hard_mode(true)
+	check(GameManager.hard_mode, "on")
+	SaveManager.reload()
+	GameManager.load_progress()
+	check(GameManager.hard_mode, "persists")
+	var m := spawn_main()
+	m.restart_floor()
+	var rm := rooms_of(m)
+	check(rm.hard_mode, "rooms get hard mode")
+	check_eq(rm.modifiers.size(), 1, "plus a sponsor event")
+	check_eq(player_of(m).health.incoming_multiplier, Modifiers.damage_taken_multiplier(rm.modifiers, true), "harder hits")
+	check(player_of(m).health.incoming_multiplier >= Modifiers.HARD_DAMAGE_TAKEN, "at least the hard mode factor")
+	var menu := MENU_SCENE.instantiate() as MainMenu
+	menu.navigate = false
+	add_child(menu)
+	await frames(1)
+	check(menu.hard_mode_toggle.visible and menu.hard_mode_toggle.button_pressed, "menu toggle shows it")
+	GameManager.reset_progress()
+	GameManager.save_progress()
+
+
+func test_daily_run() -> void:
+	GameManager.reset_progress()
+	GameManager.completed_floors.append(1)
+	var menu := MENU_SCENE.instantiate() as MainMenu
+	menu.navigate = false
+	add_child(menu)
+	await frames(1)
+	check(menu.daily_button.visible, "daily run offered after Floor 1")
+	menu.daily_button.pressed.emit()
+	check(GameManager.daily_run and GameManager.floor_number == 1, "daily run starts Floor 1")
+	var m := MAIN_SCENE.instantiate()
+	m.set("debug_keys", false)
+	m.set("navigate", false)
+	add_child(m)
+	await frames(1)
+	var rm := rooms_of(m)
+	check_eq(rm.modifiers.size(), 2, "two sponsor events")
+	var mods := rm.modifiers.duplicate()
+	var variants := rm.room_variants.duplicate()
+	m.restart_floor()
+	check_eq(rm.modifiers, mods, "same events on a retry")
+	check_eq(rm.room_variants, variants, "same rooms on a retry")
+	check(GameManager.record_daily(GameManager.today(), 500), "daily best saved")
+	check(not GameManager.record_daily(GameManager.today(), 100), "lower score isn't")
+	GameManager.daily_run = false
+	GameManager.reset_progress()
 	GameManager.reset_profile()

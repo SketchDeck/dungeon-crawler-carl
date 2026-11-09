@@ -29,6 +29,8 @@ var knockback_multiplier := 1.0
 var cooldown_multiplier := 1.0
 ## Damage multiplier for magic hits on launched enemies (upgrades raise it).
 var juggle_multiplier := EnemyBase.JUGGLE_MULTIPLIER
+## Floor modifiers (Glass Cannon) scale all damage dealt.
+var modifier_damage_multiplier := 1.0
 ## Behaviour upgrades (set by PlayerUpgrades).
 var pierce_bolts := false
 ## Damage fraction of Double Tap's extra bolt (0 = no extra bolt).

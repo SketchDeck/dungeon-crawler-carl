@@ -151,6 +151,12 @@ func _disengage() -> void:
 	_home_x = global_position.x
 
 
+func apply_haste(factor: float) -> void:
+	hop_speed *= factor
+	hop_interval /= factor
+	squash_time /= factor
+
+
 func is_telegraphing() -> bool:
 	return state == State.SQUASH and not is_dead
 

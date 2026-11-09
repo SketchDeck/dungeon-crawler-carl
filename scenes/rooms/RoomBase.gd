@@ -10,6 +10,7 @@ extends Node2D
 ##   g  Goblin   s  Slime      C  reward chest       F  healing fountain
 ##   h  Shield Goblin (blocks kicks from the front)   a  Armored Slime (shell blocks magic)
 ##   v  Cave Bat (flies; spawns where the v is)
+##   ?  a random enemy from the floor's pool (FloorData `enemies`)
 ##   S  trial switch           i  sign (texts from `signs`, in reading order)
 ##   B  boss spawn (boss rooms)    X  stairs to the next floor (open once the boss is beaten)
 ##   ^  spikes (put them in a 1-tile-deep pit)
@@ -63,6 +64,12 @@ const BAT_SCENE := preload("res://scenes/enemies/Bat.tscn")
 
 ## Persistent progress: cleared, trial_done, reward_claimed, fountain_used.
 var state := {}
+## Set by the room manager before the room is added: what `?` markers can
+## spawn, the seed that picks them, and the floor's modifiers / Hard mode.
+var enemy_pool: Array = ["g"]
+var spawn_seed := 0
+var modifiers: Array[StringName] = []
+var hard_mode := false
 var player: Player
 var doors: Array[Door] = []
 var switches: Array[FloorSwitch] = []
@@ -273,9 +280,13 @@ func _build_from_layout() -> void:
 
 	var sign_index := 0
 	var spawn_enemies := _should_spawn_enemies()
+	var spawn_rng := RandomNumberGenerator.new()
+	spawn_rng.seed = spawn_seed
 	for y in rows.size():
 		for x in rows[y].length():
 			var ch := rows[y][x]
+			if ch == "?":
+				ch = String(enemy_pool[spawn_rng.randi_range(0, enemy_pool.size() - 1)]) if not enemy_pool.is_empty() else "g"
 			var foot := Vector2((x + 0.5) * TILE, (y + 1) * TILE)
 			match ch:
 				"E":
@@ -326,6 +337,7 @@ func _build_from_layout() -> void:
 					if room_type == RoomType.BOSS and not is_cleared():
 						boss = boss_scene.instantiate() as BossBase
 						boss.position = foot - Vector2(0, boss.body_size.y * 0.5)
+						Modifiers.apply_to_enemy(boss, modifiers, hard_mode)
 						boss.died.connect(_on_boss_died)
 						_enemies.add_child(boss)
 				"x":
@@ -369,6 +381,7 @@ func _should_spawn_enemies() -> bool:
 func _spawn_enemy(scene: PackedScene, pos: Vector2) -> void:
 	var enemy := scene.instantiate() as EnemyBase
 	enemy.position = pos
+	Modifiers.apply_to_enemy(enemy, modifiers, hard_mode)
 	_enemies.add_child(enemy)
 	if room_type == RoomType.COMBAT or (room_type == RoomType.CHALLENGE and trial == Trial.DEFEAT):
 		required_enemies.append(enemy)

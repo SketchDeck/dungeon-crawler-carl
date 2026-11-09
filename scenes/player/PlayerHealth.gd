@@ -12,6 +12,8 @@ signal died
 @export var hurt_invuln_time := 0.75
 
 var current := 100.0
+## Damage taken is multiplied by this (Hard mode, Glass Cannon).
+var incoming_multiplier := 1.0
 var is_dead := false
 ## Seconds since the last damage was taken (drives hurt flash).
 var time_since_damage := 999.0
@@ -41,6 +43,7 @@ func missing() -> float:
 func take_damage(amount: float, ignore_invuln := false) -> bool:
 	if amount <= 0.0 or is_dead or (is_invulnerable() and not ignore_invuln):
 		return false
+	amount *= incoming_multiplier
 	current = clampf(current - amount, 0.0, max_health)
 	_invuln = hurt_invuln_time
 	time_since_damage = 0.0
