@@ -15,6 +15,7 @@ var continue_button: Button
 var new_game_button: Button
 var settings_button: Button
 var extras_button: Button
+var practice_button: Button
 var daily_button: Button
 var hard_mode_toggle: CheckButton
 var quit_button: Button
@@ -72,6 +73,7 @@ func _ready() -> void:
 	hard_mode_toggle.toggled.connect(func(on: bool) -> void: GameManager.set_hard_mode(on))
 	_menu.add_child(hard_mode_toggle)
 	new_game_button = _button("New Game", _on_new_game)
+	practice_button = _button("Practice", func() -> void: start_floor(FloorData.PRACTICE_FLOOR))
 	extras_button = _button("Extras", _on_extras)
 	settings_button = _button("Settings", _on_settings)
 	quit_button = _button("Quit", func() -> void: get_tree().quit())

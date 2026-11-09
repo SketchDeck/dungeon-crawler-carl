@@ -222,6 +222,13 @@ func _run() -> void:
 	await _test("secret room behind a cracked wall", test_secret_room)
 	await _test("sewer king: stances resist the wrong mode and swap", test_sewer_king_stances)
 	await _test("sewer king: sweep, wave and rat call", test_sewer_king_attacks)
+	# Polish: learnability, UI, feel, accessibility.
+	await _test("accessibility settings persist and apply", test_accessibility_settings)
+	await _test("assist mode: more lives and slower boss warnings", test_assist_mode)
+	await _test("pause menu lists the controls", test_pause_controls)
+	await _test("tips show once, ever", test_tips)
+	await _test("minimap lays out the floor and marks visits", test_minimap)
+	await _test("practice room: dummies never die, no achievements", test_practice_room)
 	GameManager.floor_number = 1
 	SaveManager.delete_save()
 	print("\n%d passed, %d failed" % [_passed, _failed])
@@ -4167,3 +4174,110 @@ func test_sewer_king_attacks() -> void:
 	k.take_hit(Hit.new(9999.0, Vector2.ZERO, null, PackedStringArray(["explosion"])))
 	check(k.is_dead, "king down")
 	check(rats.all(func(r: EnemyBase) -> bool: return not is_instance_valid(r) or r.is_dead), "his rats die with him")
+
+
+# --- Polish ---------------------------------------------------------------------------
+
+func test_accessibility_settings() -> void:
+	Settings.set_option("screen_shake", false)
+	Settings.set_option("colorblind", true)
+	check_eq(Settings.warn_color(), Settings.WARN_COLORBLIND, "colour-blind warning colour")
+	SaveManager.reload()
+	Settings.load_settings()
+	check(not Settings.screen_shake and Settings.colorblind, "options persist")
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(2)
+	Fx.camera = p.camera
+	Fx.shake(0.8)
+	check_eq(p.camera.get("_trauma"), 0.0, "no shake when turned off")
+	Settings.set_option("screen_shake", true)
+	Fx.shake(0.5)
+	check(p.camera.get("_trauma") > 0.0, "shake when on")
+	Settings.set_option("colorblind", false)
+	check_eq(Settings.warn_color(), Settings.WARN_RED, "red by default")
+
+
+func test_assist_mode() -> void:
+	var b := BOSS_SCENE.instantiate() as GoblinBoss
+	var normal := b.telegraph_time(GoblinBoss.Attack.SLAM)
+	Settings.set_option("assist_mode", true)
+	check_eq(b.telegraph_time(GoblinBoss.Attack.SLAM), normal * Settings.ASSIST_TELEGRAPH, "slower boss warnings")
+	b.free()
+	GameManager.reset_lives()
+	check_eq(GameManager.lives, 5, "five lives")
+	Settings.set_option("assist_mode", false)
+	GameManager.reset_lives()
+	check_eq(GameManager.lives, 3, "three lives normally")
+
+
+func test_pause_controls() -> void:
+	var m := spawn_main()
+	await frames(2)
+	var pause: PauseMenu = m.get("pause_menu")
+	check(pause.open(), "paused")
+	pause.controls_button.pressed.emit()
+	check(pause.controls_label.visible, "controls shown")
+	check(pause.controls_label.text.contains(Settings.prompt_label("switch_mode")), "lists the switch key")
+	pause.close()
+
+
+func test_tips() -> void:
+	GameManager.reset_profile()
+	var m := spawn_main()
+	var hud: HUD = m.get("hud")
+	await frames(2)
+	check(hud.show_tip("test_tip", "Press {jump}"), "shown the first time")
+	check(hud.tip_label.text.contains(Settings.prompt_label("jump")), "uses current keys")
+	check(not hud.show_tip("test_tip", "again"), "never twice")
+	stats_of(m).add_box(Achievements.Tier.BRONZE)
+	check(GameManager.tips_seen.has("loot"), "first loot box explains itself")
+	SaveManager.reload()
+	GameManager.load_profile()
+	check(GameManager.tips_seen.has("test_tip"), "remembered across sessions")
+	GameManager.reset_profile()
+
+
+func test_minimap() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var hud: HUD = m.get("hud")
+	await frames(2)
+	var mm := hud.minimap
+	check_eq(mm.rooms.size(), FloorData.room_ids(1).size(), "every Floor 1 room")
+	check(mm.rooms["F1-08"]["pos"].x > mm.rooms["F1-05"]["pos"].x, "boss to the right of the fork")
+	check(mm.rooms["F1-U1"]["pos"].y < mm.rooms["F1-D1"]["pos"].y, "upper path above lower")
+	check(mm.visited("F1-01") and not mm.visited("F1-07"), "visits tracked")
+	rm.load_room("F1-02")
+	check(mm.visited("F1-02"), "new room marked")
+	GameManager.floor_number = 3
+	rm.start_floor(3)
+	check(mm.rooms.has("F3-S1") and mm.rooms["F3-S1"]["secret"], "secret room known but hidden")
+	GameManager.floor_number = 1
+
+
+func test_practice_room() -> void:
+	var m := spawn_main()
+	var rm := rooms_of(m)
+	var ai := ai_of(m)
+	GameManager.floor_number = FloorData.PRACTICE_FLOOR
+	m.restart_floor()
+	await frames(2)
+	check_eq(rm.current_room_id, "T-01", "training room")
+	check(rm.modifiers.is_empty(), "no sponsor events")
+	var dummies := rm.current_room.find_children("", "CharacterBody2D", true, false).filter(func(n: Node) -> bool:
+		return n is TrainingDummy)
+	check_eq(dummies.size(), 3, "three dummies")
+	var d := dummies[0] as TrainingDummy
+	for i in 20:
+		d.take_hit(Hit.new(200.0, Vector2.ZERO, player_of(m), PackedStringArray(["kick", "heavy"])))
+	await frames(2)
+	check(not d.is_dead and is_instance_valid(d), "never dies")
+	check(d.recent_damage >= 200.0, "shows damage dealt")
+	check(not ai.history.has(&"overkill"), "no achievements in practice")
+	var magic_only := dummies.filter(func(x: TrainingDummy) -> bool: return x.kind == TrainingDummy.Kind.MAGIC_ONLY)[0] as TrainingDummy
+	var hp := magic_only.health
+	magic_only.take_hit(Hit.new(10.0, Vector2.ZERO, null, PackedStringArray(["kick"])))
+	check_eq(magic_only.health, hp, "magic-only dummy ignores kicks")
+	check(not player_of(m).combat_state.in_combat, "practice isn't combat")
+	GameManager.floor_number = 1

@@ -54,6 +54,8 @@ var equipped_hat := ""
 var best_runs := {}
 ## Date ("YYYY-MM-DD") -> best Daily Run viewers.
 var daily_best := {}
+## One-time tips already shown (profile).
+var tips_seen: Array[String] = []
 
 ## Hard mode (unlocked by beating Floor 2): tougher enemies, a sponsor event
 ## on every floor, more viewers. Saved with progress.
@@ -74,8 +76,13 @@ func lose_life() -> int:
 	return lives
 
 
+## 3 lives, or 5 in assist mode.
+func max_lives() -> int:
+	return Settings.max_lives()
+
+
 func reset_lives() -> void:
-	lives = MAX_LIVES
+	lives = max_lives()
 	lives_changed.emit(lives)
 
 
@@ -236,6 +243,7 @@ func reset_profile() -> void:
 	equipped_hat = ""
 	best_runs.clear()
 	daily_best.clear()
+	tips_seen.clear()
 
 
 func save_profile() -> void:
@@ -245,6 +253,7 @@ func save_profile() -> void:
 		"equipped_hat": equipped_hat,
 		"best_runs": best_runs.duplicate(true),
 		"daily_best": daily_best.duplicate(),
+		"tips_seen": tips_seen.duplicate(),
 	}})
 	profile_changed.emit()
 
@@ -266,6 +275,11 @@ func load_profile() -> void:
 				owned_hats.append(h)
 	var eq: Variant = data.get("equipped_hat", "")
 	equipped_hat = eq if eq is String and owned_hats.has(eq) else ""
+	var tips: Variant = data.get("tips_seen", [])
+	if tips is Array:
+		for t: Variant in tips:
+			if t is String and not tips_seen.has(t):
+				tips_seen.append(t)
 	var daily: Variant = data.get("daily_best", {})
 	if daily is Dictionary:
 		for k: Variant in daily:
@@ -307,6 +321,15 @@ func record_daily(date: String, viewers: int) -> bool:
 	if int(daily_best.get(date, -1)) >= viewers:
 		return false
 	daily_best[date] = viewers
+	save_profile()
+	return true
+
+
+## Marks a tip as shown. Returns true the first time only.
+func see_tip(id: String) -> bool:
+	if tips_seen.has(id):
+		return false
+	tips_seen.append(id)
 	save_profile()
 	return true
 

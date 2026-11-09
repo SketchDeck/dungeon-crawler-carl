@@ -189,7 +189,7 @@ func _draw() -> void:
 	if hit_flash() > 0.0:
 		body = body.lerp(Color.WHITE, 0.8)
 	elif is_telegraphing():
-		body = body.lerp(Color("#ff4030"), 0.4 + 0.3 * sin(_anim * 40.0))
+		body = body.lerp(Settings.warn_color(), 0.4 + 0.3 * sin(_anim * 40.0))
 	body.a = alpha
 	var wing := Color(WING if hit_flash() <= 0.0 else Color.WHITE, alpha)
 	var flap := sin(_anim * (26.0 if state == State.DIVE else 14.0))
@@ -211,7 +211,7 @@ func _draw() -> void:
 	if is_telegraphing():
 		var font := ThemeDB.fallback_font
 		draw_string_outline(font, Vector2(-10, -16), "!", HORIZONTAL_ALIGNMENT_CENTER, 20, 18, 4, Color.BLACK)
-		draw_string(font, Vector2(-10, -16), "!", HORIZONTAL_ALIGNMENT_CENTER, 20, 18, Color("#ff4030"))
+		draw_string(font, Vector2(-10, -16), "!", HORIZONTAL_ALIGNMENT_CENTER, 20, 18, Settings.warn_color())
 	if not is_dead and health < max_health:
 		draw_rect(Rect2(-12, -22, 24, 3), Color(0, 0, 0, 0.7))
 		draw_rect(Rect2(-12, -22, 24 * health / max_health, 3), Color("#e04040"))

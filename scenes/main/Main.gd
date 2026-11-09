@@ -92,8 +92,29 @@ func _ready() -> void:
 	GameManager.ability_unlocked.connect(_on_ability_unlocked)
 	room_manager.room_entered.connect(_on_room_entered_music)
 	GameManager.enemy_died.connect(_on_enemy_died_modifiers)
+	_connect_tips()
 	GameManager.reset_lives()
 	_begin_floor(false)
+
+
+## One-time tips for things the game doesn't otherwise explain.
+func _connect_tips() -> void:
+	GameManager.enemy_resisted.connect(func(_e: EnemyBase, _h: Hit) -> void:
+		hud.show_tip("resist", "That enemy shrugged it off. The icon above it shows what works: boot = kicks, star = magic. Switch with {switch_mode}."))
+	run_stats.boxes_changed.connect(func(n: int) -> void:
+		if n > 0:
+			hud.show_tip("loot", "You earned a loot box! Open it at a safe-room fountain ({interact})."))
+	run_stats.gold_changed.connect(func(g: int) -> void:
+		if g > 0:
+			hud.show_tip("gold", "Gold! Spend it at the merchants in Floor 3's safe rooms."))
+	room_manager.room_entered.connect(func(room: RoomBase) -> void:
+		if room.dark:
+			hud.show_tip("dark", "It's dark down here. Donut's magic is the best light: switch with {switch_mode}.")
+		elif room.room_type == RoomBase.RoomType.BOSS:
+			hud.show_tip("boss", "Bosses flash and show red markers before every attack. Dodge ({dodge}) makes you briefly invulnerable."))
+	player.combat.mode_changed.connect(func(mode: PlayerCombat.Mode) -> void:
+		if mode == PlayerCombat.Mode.DONUT:
+			hud.show_tip("donut", "Donut mode: {basic_attack} fires missiles that curve toward flyers. Hold {charged_attack} for a big blast."))
 
 
 ## Starts the current floor: picks this run's sponsor events (a replay of a
@@ -108,6 +129,8 @@ func _begin_floor(keep_boxes: bool) -> void:
 		var daily_rng := RandomNumberGenerator.new()
 		daily_rng.seed = run_seed
 		mods = Modifiers.pick(daily_rng, 2)
+	elif number == FloorData.PRACTICE_FLOOR:
+		pass
 	elif GameManager.hard_mode or GameManager.is_floor_completed(number):
 		mods = Modifiers.pick(_rng, 1)
 	set_modifiers(mods, GameManager.hard_mode)
@@ -147,7 +170,7 @@ func _modifier_blast(at: Vector2) -> void:
 
 ## Floor music, switching to the boss theme while a boss fight is on.
 func floor_music() -> String:
-	return "floor%d" % GameManager.floor_number
+	return "floor%d" % maxi(GameManager.floor_number, 1)
 
 
 func _on_room_entered_music(room: RoomBase) -> void:

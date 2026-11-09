@@ -9,6 +9,7 @@ signal closed
 
 var _sliders := {}
 var _fullscreen: CheckButton
+var _options := {}
 var _key_buttons := {}
 var _waiting_action := ""
 var _back: Button
@@ -47,6 +48,16 @@ func _ready() -> void:
 	_fullscreen.text = "Fullscreen"
 	_fullscreen.toggled.connect(func(on: bool) -> void: Settings.set_fullscreen(on))
 	box.add_child(_fullscreen)
+	for entry: Array in [["screen_shake", "Screen shake"],
+			["assist_mode", "Assist mode (5 lives, slower boss warnings; applies from the next floor start)"],
+			["colorblind", "Colour-blind warnings (attack warnings flash yellow instead of red)"]]:
+		var toggle := CheckButton.new()
+		toggle.name = entry[0]
+		toggle.text = entry[1]
+		var option: String = entry[0]
+		toggle.toggled.connect(func(on: bool) -> void: Settings.set_option(option, on))
+		box.add_child(toggle)
+		_options[option] = toggle
 
 	box.add_child(_heading("Keyboard controls (click, then press a key)", 15))
 	var grid := GridContainer.new()
@@ -121,6 +132,8 @@ func refresh() -> void:
 	for bus: String in _sliders:
 		(_sliders[bus] as HSlider).set_value_no_signal(Settings.volumes[bus])
 	_fullscreen.set_pressed_no_signal(Settings.fullscreen)
+	for option: String in _options:
+		(_options[option] as CheckButton).set_pressed_no_signal(bool(Settings.get(option)))
 	for action: String in _key_buttons:
 		(_key_buttons[action] as Button).text = "Press a key..." if action == _waiting_action else Settings.key_label(action)
 

@@ -22,7 +22,6 @@ const RAT_SCENE := preload("res://scenes/enemies/Rat.tscn")
 const FUR := Color("#6a5a54")
 const SLICK_TINT := Color("#9b5cff")
 const PLATED_TINT := Color("#9aa4b2")
-const WARN := Color("#ff3a2a")
 
 @export_group("Timing")
 @export var intro_time := 1.4
@@ -93,7 +92,7 @@ func start_fight() -> void:
 	set_engaged(true)
 	Audio.play("boss_roar")
 	Fx.shake(0.5)
-	Fx.text(global_position + Vector2(0, -90), "SQUEEEE!", WARN, 24)
+	Fx.text(global_position + Vector2(0, -90), "SQUEEEE!", Settings.warn_color(), 24)
 	fight_started.emit()
 
 
@@ -116,7 +115,7 @@ func telegraph_time(a: Attack) -> float:
 			base = wave_telegraph
 		Attack.SUMMON:
 			base = summon_telegraph
-	return base * (phase2_telegraph_multiplier if phase == 2 else 1.0)
+	return base * (phase2_telegraph_multiplier if phase == 2 else 1.0) * Settings.telegraph_scale()
 
 
 # --- Stances --------------------------------------------------------------------
@@ -304,8 +303,8 @@ func _enter_phase_two() -> void:
 	_t = transition_time
 	velocity.x = 0.0
 	Fx.shake(0.8)
-	Fx.burst(global_position, WARN, 70.0, 0.5)
-	Fx.text(global_position + Vector2(0, -100), "FURIOUS!", WARN, 26)
+	Fx.burst(global_position, Settings.warn_color(), 70.0, 0.5)
+	Fx.text(global_position + Vector2(0, -100), "FURIOUS!", Settings.warn_color(), 26)
 	Audio.play("boss_roar")
 
 
@@ -333,7 +332,7 @@ func _draw() -> void:
 	if phase == 2:
 		fur = fur.lerp(Color("#a8403a"), 0.25)
 	if is_telegraphing():
-		fur = fur.lerp(WARN, 0.25 + 0.2 * sin(_anim * 30.0))
+		fur = fur.lerp(Settings.warn_color(), 0.25 + 0.2 * sin(_anim * 30.0))
 	fur.a = alpha
 	var h := body_size.y
 	var w := body_size.x
@@ -344,7 +343,7 @@ func _draw() -> void:
 	# Telegraph markers on the floor.
 	if is_telegraphing() and attack == Attack.SWEEP:
 		var k := 0.5 + 0.5 * sin(_anim * 25.0)
-		draw_rect(Rect2(-sweep_reach - w * 0.5, feet - 6, sweep_reach * 2.0 + w, 6), Color(WARN, 0.35 + 0.35 * k))
+		draw_rect(Rect2(-sweep_reach - w * 0.5, feet - 6, sweep_reach * 2.0 + w, 6), Color(Settings.warn_color(), 0.35 + 0.35 * k))
 	if _sweep_fx > 0.0:
 		draw_rect(Rect2(-sweep_reach - w * 0.5, feet - sweep_height, sweep_reach * 2.0 + w, sweep_height),
 			Color(1, 0.6, 0.4, _sweep_fx * 1.5))
@@ -382,6 +381,6 @@ func _draw() -> void:
 	if is_telegraphing():
 		var font := ThemeDB.fallback_font
 		draw_string_outline(font, Vector2(-12, -h * 0.5 - 30), "!!", HORIZONTAL_ALIGNMENT_CENTER, 24, 26, 5, Color.BLACK)
-		draw_string(font, Vector2(-12, -h * 0.5 - 30), "!!", HORIZONTAL_ALIGNMENT_CENTER, 24, 26, WARN)
+		draw_string(font, Vector2(-12, -h * 0.5 - 30), "!!", HORIZONTAL_ALIGNMENT_CENTER, 24, 26, Settings.warn_color())
 	if not is_dormant():
 		draw_weakness(Vector2(0, -h * 0.5 - 52))

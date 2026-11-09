@@ -7,6 +7,8 @@ signal main_menu_requested
 
 var resume_button: Button
 var settings_button: Button
+var controls_button: Button
+var controls_label: Label
 var menu_button: Button
 
 var _panel: PanelContainer
@@ -42,6 +44,11 @@ func _ready() -> void:
 	title.add_theme_color_override("font_color", Color("#ffd34d"))
 	box.add_child(title)
 	resume_button = _button(box, "Resume", close)
+	controls_button = _button(box, "Controls", toggle_controls)
+	controls_label = Label.new()
+	controls_label.add_theme_font_size_override("font_size", 14)
+	controls_label.hide()
+	box.add_child(controls_label)
 	settings_button = _button(box, "Settings", _open_settings)
 	menu_button = _button(box, "Main Menu", func() -> void:
 		close()
@@ -69,6 +76,34 @@ func _button(parent: Node, text: String, action: Callable) -> Button:
 	return b
 
 
+## Shows or hides the list of controls (current keys or controller buttons).
+func toggle_controls() -> void:
+	controls_label.visible = not controls_label.visible
+	if controls_label.visible:
+		controls_label.text = controls_text()
+
+
+static func controls_text() -> String:
+	var rows := [
+		["Move", Settings.format_prompts("{move_left} / {move_right}")],
+		["Jump (hold for higher)", Settings.prompt_label("jump")],
+		["Dodge (brief invulnerability)", Settings.prompt_label("dodge")],
+		["Switch Carl / Donut", Settings.prompt_label("switch_mode")],
+		["Kick combo / magic missile", Settings.prompt_label("basic_attack")],
+		["Hold: power kick / charged blast", Settings.prompt_label("charged_attack")],
+		["Special (once unlocked)", Settings.prompt_label("special_attack")],
+		["Drink potion", Settings.prompt_label("use_potion")],
+		["Interact (chests, fountains, shops)", Settings.prompt_label("interact")],
+	]
+	var lines: Array[String] = []
+	for r: Array in rows:
+		lines.append("%-36s %s" % [r[0], r[1]])
+	lines.append("")
+	lines.append("Boot icon over an enemy = use kicks. Star = use magic.")
+	lines.append("Power-kick an enemy up, then hit it with magic: double damage.")
+	return "\n".join(lines)
+
+
 func is_open() -> bool:
 	return visible
 
@@ -81,6 +116,7 @@ func open() -> bool:
 	show()
 	_panel.show()
 	_settings.hide()
+	controls_label.hide()
 	get_tree().paused = true
 	resume_button.grab_focus()
 	return true

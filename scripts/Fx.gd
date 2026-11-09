@@ -9,7 +9,7 @@ var _hitstop_active := false
 
 
 func shake(amount: float) -> void:
-	if is_instance_valid(camera):
+	if is_instance_valid(camera) and Settings.screen_shake:
 		camera.add_shake(amount)
 
 
@@ -18,6 +18,18 @@ func hit_stop(duration: float) -> void:
 		return
 	_hitstop_active = true
 	Engine.time_scale = 0.05
+	await get_tree().create_timer(duration, true, false, true).timeout
+	Engine.time_scale = 1.0
+	_hitstop_active = false
+
+
+## Brief slow motion (e.g. the last enemy in a room falls). Skipped while a
+## hit stop runs and in tests.
+func slow_motion(duration := 0.45, time_scale := 0.3) -> void:
+	if not hitstop_enabled or _hitstop_active or duration <= 0.0:
+		return
+	_hitstop_active = true
+	Engine.time_scale = time_scale
 	await get_tree().create_timer(duration, true, false, true).timeout
 	Engine.time_scale = 1.0
 	_hitstop_active = false

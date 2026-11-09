@@ -169,7 +169,7 @@ func _draw() -> void:
 	if hit_flash() > 0.0:
 		fur = fur.lerp(Color.WHITE, 0.8)
 	elif is_telegraphing():
-		fur = fur.lerp(Color("#ff4030"), 0.4 + 0.3 * sin(_anim * 40.0))
+		fur = fur.lerp(Settings.warn_color(), 0.4 + 0.3 * sin(_anim * 40.0))
 	fur.a = alpha
 	var squash := 0.75 if state == State.WINDUP else 1.0
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(facing, 1))
@@ -191,7 +191,7 @@ func _draw() -> void:
 	if is_telegraphing():
 		var font := ThemeDB.fallback_font
 		draw_string_outline(font, Vector2(-10, -14), "!", HORIZONTAL_ALIGNMENT_CENTER, 20, 16, 4, Color.BLACK)
-		draw_string(font, Vector2(-10, -14), "!", HORIZONTAL_ALIGNMENT_CENTER, 20, 16, Color("#ff4030"))
+		draw_string(font, Vector2(-10, -14), "!", HORIZONTAL_ALIGNMENT_CENTER, 20, 16, Settings.warn_color())
 	if not is_dead and health < max_health:
 		draw_rect(Rect2(-11, -16, 22, 3), Color(0, 0, 0, 0.7))
 		draw_rect(Rect2(-11, -16, 22 * health / max_health, 3), Color("#e04040"))

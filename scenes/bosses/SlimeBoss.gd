@@ -20,7 +20,6 @@ enum Attack { VOLLEY, JUMP, SPAWN }
 
 const COLOR_P1 := Color("#5ccf6a")
 const COLOR_P2 := Color("#9a5cff")
-const WARN := Color("#ff3a2a")
 const MINI_SCENE := preload("res://scenes/enemies/MiniSlime.tscn")
 
 @export_group("Timing")
@@ -115,7 +114,7 @@ func telegraph_time(a: Attack) -> float:
 			base = jump_telegraph
 		Attack.SPAWN:
 			base = spawn_telegraph
-	return base * (phase2_telegraph_multiplier if phase == 2 else 1.0)
+	return base * (phase2_telegraph_multiplier if phase == 2 else 1.0) * Settings.telegraph_scale()
 
 
 func recovery_time() -> float:
@@ -402,7 +401,7 @@ func _draw() -> void:
 		var font := ThemeDB.fallback_font
 		var mark := "!!" if attack == Attack.JUMP else "!"
 		draw_string_outline(font, Vector2(-20, -h * 0.5 - 18), mark, HORIZONTAL_ALIGNMENT_CENTER, 40, 30, 5, Color.BLACK)
-		draw_string(font, Vector2(-20, -h * 0.5 - 18), mark, HORIZONTAL_ALIGNMENT_CENTER, 40, 30, WARN)
+		draw_string(font, Vector2(-20, -h * 0.5 - 18), mark, HORIZONTAL_ALIGNMENT_CENTER, 40, 30, Settings.warn_color())
 
 
 func _draw_telegraph(feet: float) -> void:
@@ -432,17 +431,17 @@ func _draw_telegraph(feet: float) -> void:
 					steps += 1
 				var land_x := to_local(Vector2(glob_landing_x(vel), 0)).x
 				if land_x > min_x and land_x < max_x:
-					draw_rect(Rect2(land_x - 9, feet - 4, 18, 4), Color(WARN, pulse + 0.2))
+					draw_rect(Rect2(land_x - 9, feet - 4, 18, 4), Color(Settings.warn_color(), pulse + 0.2))
 		Attack.JUMP:
 			var x := to_local(Vector2(target_x, 0)).x
 			var r := pool_width * 0.5 * (1.3 if phase == 2 else 1.0)
 			draw_set_transform(Vector2(x, feet - 2), 0.0, Vector2(1.0, 0.2))
-			draw_circle(Vector2.ZERO, r, Color(WARN, 0.12 + 0.2 * progress))
-			draw_arc(Vector2.ZERO, r, 0.0, TAU, 40, Color(WARN, pulse + 0.2), 6.0)
+			draw_circle(Vector2.ZERO, r, Color(Settings.warn_color(), 0.12 + 0.2 * progress))
+			draw_arc(Vector2.ZERO, r, 0.0, TAU, 40, Color(Settings.warn_color(), pulse + 0.2), 6.0)
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-			draw_line(Vector2(x, feet - 70), Vector2(x, feet - 20), Color(WARN, pulse + 0.2), 3.0)
+			draw_line(Vector2(x, feet - 70), Vector2(x, feet - 20), Color(Settings.warn_color(), pulse + 0.2), 3.0)
 			draw_colored_polygon(PackedVector2Array([Vector2(x - 8, feet - 30), Vector2(x + 8, feet - 30), Vector2(x, feet - 16)]),
-				Color(WARN, pulse + 0.2))
+				Color(Settings.warn_color(), pulse + 0.2))
 		Attack.SPAWN:
 			for i in 6:
 				var a := _anim * 4.0 + i * TAU / 6.0

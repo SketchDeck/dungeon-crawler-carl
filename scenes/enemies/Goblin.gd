@@ -182,7 +182,7 @@ func _draw() -> void:
 	var alpha := 1.0 - death_progress() if is_dead else 1.0
 	var skin := SKIN.lerp(Color.WHITE, 0.8) if hit_flash() > 0.0 else SKIN
 	if is_telegraphing():
-		skin = skin.lerp(Color("#ff4030"), 0.35 + 0.25 * sin(Time.get_ticks_msec() * 0.03))
+		skin = skin.lerp(Settings.warn_color(), 0.35 + 0.25 * sin(Time.get_ticks_msec() * 0.03))
 	skin.a = alpha
 	var cloth := Color(CLOTH, alpha)
 	var club := Color(CLUB, alpha)
@@ -219,7 +219,7 @@ func _draw() -> void:
 	if is_telegraphing():
 		var font := ThemeDB.fallback_font
 		draw_string_outline(font, Vector2(-10, -38), "!", HORIZONTAL_ALIGNMENT_CENTER, 20, 22, 4, Color.BLACK)
-		draw_string(font, Vector2(-10, -38), "!", HORIZONTAL_ALIGNMENT_CENTER, 20, 22, Color("#ff4030"))
+		draw_string(font, Vector2(-10, -38), "!", HORIZONTAL_ALIGNMENT_CENTER, 20, 22, Settings.warn_color())
 
 	# Health bar once damaged.
 	if not is_dead and health < max_health:

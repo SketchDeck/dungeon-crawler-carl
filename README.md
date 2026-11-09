@@ -331,6 +331,27 @@ Floor 3: The Sewers (Milestone 13):
   the side pipes). Phase 2 at half health: faster swaps and tells, longer
   waves, three rats per call. His rats die with him.
 
+Learning, UI and accessibility:
+
+- **Tips:** one-time hints appear near the bottom of the screen the first
+  time something new happens: an enemy shrugs off a hit, your first loot
+  box, gold, a dark room, a boss room, Donut mode. Each tip shows once,
+  ever, and tips use your current keys or buttons.
+- **Pause menu → Controls** lists every control with your current bindings.
+- **Practice** (main menu) opens a Training Room with three dummies (plain,
+  magic only, kicks only) that never die and show the damage you dealt in
+  the last 3 seconds, plus a barrel and a crate. Nothing there earns
+  achievements. Leave through the pause menu.
+- **Minimap** (bottom right): every room on the floor, left to right from the
+  entrance, with upper and lower paths above and below. Visited rooms are
+  filled and the current room pulses. Secret rooms stay hidden until found.
+- **Slow motion:** the last kill in a combat room plays in brief slow motion.
+- **Settings → accessibility:**
+  - Screen shake on/off.
+  - Assist mode: 5 lives instead of 3, and boss warnings last 40% longer.
+  - Colour-blind warnings: enemies and bosses flash yellow instead of red
+    before attacking.
+
 Health and healing rules:
 
 - You start with **3 potions** and can carry at most **10**. Each potion heals

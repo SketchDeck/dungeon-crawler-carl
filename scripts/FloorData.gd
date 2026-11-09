@@ -6,7 +6,16 @@ extends RefCounted
 ## different layout. Each floor run picks one variant per room at random.
 ## `enemies` is the pool that `?` spawn markers in layouts pick from.
 
+## Floor 0 is the practice room (main menu "Practice"), not part of a run.
+const PRACTICE_FLOOR := 0
+
 const FLOORS := {
+	0: {
+		"name": "Training Room",
+		"boss": "nobody",
+		"start": "T-01",
+		"rooms": {"T-01": "res://scenes/rooms/practice/T_01_Training.tscn"},
+	},
 	1: {
 		"name": "Floor 1",
 		"boss": "Goblin Brute",

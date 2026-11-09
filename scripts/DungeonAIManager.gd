@@ -288,6 +288,9 @@ func _on_boss_defeated() -> void:
 func award(id: StringName, entry: Dictionary) -> bool:
 	if player == null or player.health.is_dead or _awarded_this_encounter.has(id) or _awarded_this_floor.has(id):
 		return false
+	# No achievements for hitting practice dummies.
+	if room_manager and room_manager.floor_number == FloorData.PRACTICE_FLOOR:
+		return false
 	_awarded_this_encounter.append(id)
 	if Achievements.per_floor(id):
 		_awarded_this_floor.append(id)

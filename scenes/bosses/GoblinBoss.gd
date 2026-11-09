@@ -23,7 +23,6 @@ const SKIN := Color("#5f9a45")
 const SKIN_ENRAGED := Color("#a8583a")
 const ARMOR := Color("#4d4038")
 const CLUB := Color("#7a4f28")
-const WARN := Color("#ff3a2a")
 
 @export_group("Movement")
 @export var approach_speed := 95.0
@@ -100,7 +99,7 @@ func start_fight() -> void:
 	set_engaged(true)
 	Audio.play("boss_roar")
 	Fx.shake(0.5)
-	Fx.text(global_position + Vector2(0, -80), "RAAAGH!", WARN, 24)
+	Fx.text(global_position + Vector2(0, -80), "RAAAGH!", Settings.warn_color(), 24)
 	fight_started.emit()
 
 
@@ -119,7 +118,7 @@ func telegraph_time(a: Attack) -> float:
 			base = charge_telegraph
 		Attack.SLAM:
 			base = slam_telegraph
-	return base * (phase2_telegraph_multiplier if phase == 2 else 1.0)
+	return base * (phase2_telegraph_multiplier if phase == 2 else 1.0) * Settings.telegraph_scale()
 
 
 func recovery_time() -> float:
@@ -313,8 +312,8 @@ func _enter_phase_two() -> void:
 	_t = transition_time
 	velocity.x = 0.0
 	Fx.shake(0.8)
-	Fx.burst(global_position, WARN, 70.0, 0.5)
-	Fx.text(global_position + Vector2(0, -90), "ENRAGED!", WARN, 26)
+	Fx.burst(global_position, Settings.warn_color(), 70.0, 0.5)
+	Fx.text(global_position + Vector2(0, -90), "ENRAGED!", Settings.warn_color(), 26)
 	Audio.play("boss_roar")
 
 
@@ -342,7 +341,7 @@ func _draw() -> void:
 	if hit_flash() > 0.0:
 		skin = skin.lerp(Color.WHITE, 0.75)
 	elif is_telegraphing():
-		skin = skin.lerp(WARN, 0.3 + 0.2 * sin(_anim * 30.0))
+		skin = skin.lerp(Settings.warn_color(), 0.3 + 0.2 * sin(_anim * 30.0))
 	skin.a = alpha
 	var armor := Color(ARMOR, alpha)
 	var club := Color(CLUB, alpha)
@@ -357,7 +356,7 @@ func _draw() -> void:
 
 	# Enraged aura.
 	if phase == 2 and not is_dead:
-		draw_circle(Vector2(0, -6), 50.0 + 3.0 * sin(_anim * 8.0), Color(WARN, 0.12))
+		draw_circle(Vector2(0, -6), 50.0 + 3.0 * sin(_anim * 8.0), Color(Settings.warn_color(), 0.12))
 	# Legs.
 	var stride := sin(_anim * 10.0) * 6.0 if state == State.APPROACH or state == State.CHARGING else 0.0
 	draw_line(Vector2(-11, 14), Vector2(-12 - stride, feet_y - crouch), skin, 11.0)
@@ -420,7 +419,7 @@ func _draw() -> void:
 		var font := ThemeDB.fallback_font
 		var mark := "!!" if attack == Attack.CHARGE else "!"
 		draw_string_outline(font, Vector2(-20, -66), mark, HORIZONTAL_ALIGNMENT_CENTER, 40, 30, 5, Color.BLACK)
-		draw_string(font, Vector2(-20, -66), mark, HORIZONTAL_ALIGNMENT_CENTER, 40, 30, WARN)
+		draw_string(font, Vector2(-20, -66), mark, HORIZONTAL_ALIGNMENT_CENTER, 40, 30, Settings.warn_color())
 
 
 ## Ground markings that show where the coming attack will land.
@@ -432,23 +431,23 @@ func _draw_telegraph(feet_y: float) -> void:
 			# Arrow along the floor in the charge direction.
 			var length := 90.0 + 170.0 * progress
 			var y := feet_y - 6.0
-			draw_rect(Rect2(minf(0.0, facing * length), y - 5, length, 10), Color(WARN, pulse))
+			draw_rect(Rect2(minf(0.0, facing * length), y - 5, length, 10), Color(Settings.warn_color(), pulse))
 			var head_x := facing * (length + 22.0)
 			draw_colored_polygon(PackedVector2Array([
-				Vector2(facing * length, y - 14), Vector2(head_x, y), Vector2(facing * length, y + 14)]), Color(WARN, pulse + 0.2))
+				Vector2(facing * length, y - 14), Vector2(head_x, y), Vector2(facing * length, y + 14)]), Color(Settings.warn_color(), pulse + 0.2))
 		Attack.SLAM:
 			# Stripes out to the shockwave's reach on both sides.
 			var reach := current_wave_range() + body_size.x * 0.5
 			var shown := reach * (0.3 + 0.7 * progress)
-			draw_rect(Rect2(-shown, feet_y - 4, shown * 2.0, 4), Color(WARN, pulse))
+			draw_rect(Rect2(-shown, feet_y - 4, shown * 2.0, 4), Color(Settings.warn_color(), pulse))
 			var x := 24.0
 			while x < shown:
 				for dir in [-1, 1]:
-					draw_rect(Rect2(dir * x - 3, feet_y - 10, 6, 6), Color(WARN, pulse * 0.8))
+					draw_rect(Rect2(dir * x - 3, feet_y - 10, 6, 6), Color(Settings.warn_color(), pulse * 0.8))
 				x += 30.0
 		Attack.SWING:
 			# Outline of the swing's reach.
 			var box := swing_hitbox
 			var rect := Rect2(Vector2(box.position.x * facing - (box.size.x if facing < 0 else 0.0), box.position.y), box.size)
-			draw_rect(rect, Color(WARN, 0.12 + 0.18 * progress))
-			draw_rect(rect, Color(WARN, pulse + 0.2), false, 2.0)
+			draw_rect(rect, Color(Settings.warn_color(), 0.12 + 0.18 * progress))
+			draw_rect(rect, Color(Settings.warn_color(), pulse + 0.2), false, 2.0)

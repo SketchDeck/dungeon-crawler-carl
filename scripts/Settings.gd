@@ -1,6 +1,7 @@
 extends Node
 ## Autoload: player settings (volume per audio bus, fullscreen, keyboard
-## remapping). Applied on startup and saved under "settings" in the save file.
+## remapping, accessibility). Applied on startup and saved under "settings"
+## in the save file.
 
 signal changed
 
@@ -17,6 +18,16 @@ const REMAPPABLE := [
 ## Bus name -> linear volume 0..1.
 var volumes := {"Master": 0.8, "Music": 0.7, "SFX": 0.8}
 var fullscreen := false
+## Accessibility: screen shake on/off; assist mode (5 lives, boss warnings
+## last 40% longer); colour-blind-friendly warning colour (yellow, not red).
+var screen_shake := true
+var assist_mode := false
+var colorblind := false
+
+const WARN_RED := Color("#ff4030")
+const WARN_COLORBLIND := Color("#ffe600")
+const ASSIST_TELEGRAPH := 1.4
+const ASSIST_LIVES := 5
 ## Action -> physical keycode replacing that action's first keyboard key.
 var key_overrides := {}
 ## True after the player last used a controller (prompts show pad buttons).
@@ -65,8 +76,17 @@ func prompt_label(action: String) -> String:
 func load_settings() -> void:
 	volumes = {"Master": 0.8, "Music": 0.7, "SFX": 0.8}
 	fullscreen = false
+	screen_shake = true
+	assist_mode = false
+	colorblind = false
 	var data: Variant = SaveManager.load_data().get("settings", {})
 	if data is Dictionary:
+		var shake: Variant = data.get("screen_shake", true)
+		screen_shake = not (shake is bool) or shake
+		var assist: Variant = data.get("assist_mode", false)
+		assist_mode = assist is bool and assist
+		var cb: Variant = data.get("colorblind", false)
+		colorblind = cb is bool and cb
 		var vols: Variant = data.get("volumes", {})
 		if vols is Dictionary:
 			for bus: String in BUSES:
@@ -87,7 +107,28 @@ func load_settings() -> void:
 
 func save_settings() -> void:
 	SaveManager.update({"settings": {"volumes": volumes.duplicate(), "fullscreen": fullscreen,
-		"keys": key_overrides.duplicate()}})
+		"keys": key_overrides.duplicate(), "screen_shake": screen_shake, "assist_mode": assist_mode,
+		"colorblind": colorblind}})
+
+
+func set_option(option: String, value: bool) -> void:
+	set(option, value)
+	save_settings()
+	changed.emit()
+
+
+## The colour enemies flash and boss markers use before an attack.
+func warn_color() -> Color:
+	return WARN_COLORBLIND if colorblind else WARN_RED
+
+
+## Boss telegraphs are multiplied by this (longer in assist mode).
+func telegraph_scale() -> float:
+	return ASSIST_TELEGRAPH if assist_mode else 1.0
+
+
+func max_lives() -> int:
+	return ASSIST_LIVES if assist_mode else 3
 
 
 ## Pushes every setting to the engine (audio buses, window, input map).

@@ -16,6 +16,7 @@ extends Node2D
 ##   ~  crumbling platform (one-way; falls away when you stand on it, grows back)
 ##   L  lift track: a moving platform slides back and forth along the run of L's
 ##   M  merchant (shop)
+##   d  training dummy   j  dummy that only magic hurts   k  dummy that only kicks hurt
 ##   S  trial switch           i  sign (texts from `signs`, in reading order)
 ##   B  boss spawn (boss rooms)    X  stairs to the next floor (open once the boss is beaten)
 ##   ^  spikes (put them in a 1-tile-deep pit)
@@ -46,6 +47,7 @@ const SHIELD_GOBLIN_SCENE := preload("res://scenes/enemies/ShieldGoblin.tscn")
 const ARMORED_SLIME_SCENE := preload("res://scenes/enemies/ArmoredSlime.tscn")
 const BAT_SCENE := preload("res://scenes/enemies/Bat.tscn")
 const RAT_SCENE := preload("res://scenes/enemies/Rat.tscn")
+const DUMMY_SCENE := preload("res://scenes/enemies/TrainingDummy.tscn")
 const CURRENT_SPEED := 140.0
 
 @export var room_id := ""
@@ -195,6 +197,7 @@ func _clear_encounter() -> void:
 	if player:
 		player.combat_state.end_encounter(StringName(room_id))
 	_set_state("cleared", true)
+	Fx.slow_motion()
 	Fx.text(player.global_position + Vector2(0, -70) if player else get_spawn_point(), "ROOM CLEARED", Color("#7dff8a"), 20)
 	encounter_cleared.emit()
 
@@ -345,6 +348,12 @@ func _build_from_layout() -> void:
 				"r":
 					if spawn_enemies:
 						_spawn_enemy(RAT_SCENE, foot - Vector2(0, 8))
+				"d", "j", "k":
+					var dummy := DUMMY_SCENE.instantiate() as TrainingDummy
+					dummy.kind = {"d": TrainingDummy.Kind.PLAIN, "j": TrainingDummy.Kind.MAGIC_ONLY,
+						"k": TrainingDummy.Kind.KICKS_ONLY}[ch]
+					dummy.position = foot - Vector2(0, 28)
+					_enemies.add_child(dummy)
 				"M":
 					merchant = Merchant.new()
 					merchant.position = foot

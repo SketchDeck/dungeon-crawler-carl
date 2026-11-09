@@ -62,9 +62,36 @@ var _boxes := 0
 var _viewers := 0
 var _gold := 0
 var modifiers_label: Label
+var tip_label: Label
+var _tip_tween: Tween
+var minimap: Minimap
 
 
 func _ready() -> void:
+	tip_label = Label.new()
+	tip_label.name = "Tip"
+	tip_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	tip_label.offset_left = -330.0
+	tip_label.offset_right = 330.0
+	tip_label.offset_top = -110.0
+	tip_label.offset_bottom = -44.0
+	tip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tip_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	tip_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip_label.add_theme_font_size_override("font_size", 15)
+	tip_label.add_theme_color_override("font_color", Color("#8ec5ff"))
+	tip_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	tip_label.add_theme_constant_override("outline_size", 5)
+	tip_label.modulate.a = 0.0
+	add_child(tip_label)
+	minimap = Minimap.new()
+	minimap.name = "Minimap"
+	minimap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	minimap.offset_left = -236.0
+	minimap.offset_right = -16.0
+	minimap.offset_top = -120.0
+	minimap.offset_bottom = -40.0
+	add_child(minimap)
 	_banner.modulate.a = 0.0
 	_fade.color.a = 0.0
 	GameManager.lives_changed.connect(_on_lives_changed)
@@ -124,6 +151,21 @@ func _update_controls_hint() -> void:
 	_controls.text = "%s/%s move · %s jump · %s dodge · %s Carl/Donut · %s kick/missile · hold %s power/blast · %s special · %s potion · %s use · Esc pause" % [
 		k.call("move_left"), k.call("move_right"), k.call("jump"), k.call("dodge"), k.call("switch_mode"),
 		k.call("basic_attack"), k.call("charged_attack"), k.call("special_attack"), k.call("use_potion"), k.call("interact")]
+
+
+## A one-time hint near the bottom of the screen. {action} tokens show the
+## current keys. Returns false if the tip was shown before (ever).
+func show_tip(id: String, text: String) -> bool:
+	if not GameManager.see_tip(id):
+		return false
+	tip_label.text = "TIP: " + Settings.format_prompts(text)
+	if _tip_tween:
+		_tip_tween.kill()
+	_tip_tween = create_tween()
+	_tip_tween.tween_property(tip_label, "modulate:a", 1.0, 0.3)
+	_tip_tween.tween_interval(6.0)
+	_tip_tween.tween_property(tip_label, "modulate:a", 0.0, 0.8)
+	return true
 
 
 ## Dungeon AI achievement popup (queued, never pauses the game).
@@ -236,9 +278,11 @@ static func _group_digits(n: int) -> String:
 
 func bind_rooms(manager: RoomManager) -> void:
 	manager.room_entered.connect(_on_room_entered.bind(manager))
+	minimap.bind(manager)
 
 
 func _on_lives_changed(lives: int) -> void:
+	_lives.set("max_lives", maxi(GameManager.max_lives(), lives))
 	_lives.set("lives", lives)
 
 
