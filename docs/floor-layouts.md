@@ -64,6 +64,26 @@ LOWER on the ground). F2-D2 is a defeat trial with two doors (MIDDLE on a
 ledge, LOWER on the ground). F2-U4 is a switches trial over a spike pit, F2-D4
 a climb over spike pits. Room interiors are placeholder geometry like Floor 1.
 
+## Floor 3: The Sewers (Milestone 13)
+
+Floor 3 isn't in the original layout PDF. It was designed for this build.
+
+| Room  | Type      | Exits to              | Notes |
+|-------|-----------|-----------------------|-------|
+| F3-01 | Entrance  | F3-02                 | Signs: currents, rats, gold, dark rooms |
+| F3-02 | Combat    | F3-03                 | Rats, a current |
+| F3-03 | Safe      | F3-04                 | Fountain and shop |
+| F3-04 | Challenge | F3-05                 | Reach trial over crumbling catwalks |
+| F3-05 | Combat    | F3-U1, F3-D1          | Fork: HIGH (dark) / LOW (flooded) |
+| F3-U1 | Combat    | F3-U2                 | Dark |
+| F3-U2 | Challenge | F3-06                 | Switches trial with a moving lift |
+| F3-D1 | Combat    | F3-D2, F3-S1          | Currents; door 2 hides behind a cracked wall |
+| F3-S1 | Challenge | F3-D2                 | Secret stash (reach trial, crates) |
+| F3-D2 | Challenge | F3-06                 | Defeat trial |
+| F3-06 | Safe      | F3-07                 | Fountain and shop |
+| F3-07 | Combat    | F3-08                 | Dark, with currents |
+| F3-08 | Boss      | — (floor end)         | The Sewer King |
+
 ## Decisions
 
 - Doors only lead forward, following the arrows; entrances are sealed behind

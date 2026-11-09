@@ -73,6 +73,8 @@ var _anim := 0.0
 func _init() -> void:
 	boss_name = "MUTATING SLIME"
 	boss_hint = "Dotted arcs show where globs land. A red marker shows where it jumps. Keep moving!"
+	phase2_hint = "It's mutating: more globs, acid everywhere, and it splits off little slimes"
+	defeat_text = "The Mutating Slime is goo. Take the stairs."
 
 
 func _ready() -> void:

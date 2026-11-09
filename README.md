@@ -4,9 +4,9 @@ A 2D action platformer prototype in Godot 4 (GDScript). You play Carl, with
 Princess Donut riding on his shoulder, and kick your way through dungeon rooms.
 No logins, database, backend, or JavaScript packages are required.
 
-**Status: all 8 milestones done (first playable prototype).** Both floors
-are playable end to end: Floor 1 (14 rooms, the Goblin Brute) and Floor 2 (15
-rooms, Slimes, the Mutating Slime), with special abilities, treasure
+**Status: milestones 1–13 done.** Three floors are playable end to end:
+Floor 1 (14 rooms, the Goblin Brute), Floor 2 (15 rooms, Slimes, the
+Mutating Slime) and Floor 3 (13 sewer rooms, the Sewer King), with special abilities, treasure
 upgrades, hazards, Dungeon AI achievements, menus, settings, saves, sound,
 music and controller support. The game opens on the main menu.
 Rooms are connected as in
@@ -301,6 +301,36 @@ The Mutating Slime (Floor 2 boss):
 - It has 420 HP. Beating it completes Floor 2, permanently unlocks the Magic
   Burst, and ends the run (Floor Complete lets you replay Floor 2).
 
+Floor 3: The Sewers (Milestone 13):
+
+- Reached by beating Floor 2 (Continue on the Floor Complete screen, or the
+  main menu's floor select). 13 rooms, including a secret one.
+- **Sewer Rats** (22 HP) come in packs. They flash red, then lunge (8
+  damage).
+- **Water currents** carry anyone standing on them sideways. Enemies drift
+  too.
+- **Crumbling catwalks** give way half a second after you land on them and
+  grow back 2.5s later.
+- **Lifts** slide back and forth along their track.
+- **Dark rooms:** the screen is dimmed. Carl's glow is small; Donut's glow
+  is much bigger and every bolt lights its path, so switch to Donut to see.
+  Doors, fountains, chests and shops have a faint light.
+- **Secret room:** one of the cracked walls in Floodway (F3-D1) hides a door
+  to a stash. Finding it earns Nosy Neighbour.
+- **Gold:** every enemy drops gold during a run (bosses drop lots).
+  It shows next to the viewers, carries over to the next floor like loot
+  boxes, and is lost if the floor restarts.
+- **Shops:** the goblin merchant in Floor 3's safe rooms sells a health
+  potion (12 gold), a bronze loot box (20), a stat upgrade choice (40) and
+  a rare upgrade choice (85). Upgrade picks appear when you leave the shop.
+- **The Sewer King** (480 HP) switches stances: **slick** (purple: kicks
+  slide off, use magic) and **plated** (steel scales: magic splashes off,
+  use kicks). The icon over his crown shows which. He swaps every 7s, or
+  sooner after taking 70 damage. Attacks: a tail sweep along the floor
+  (jump it), sludge waves both ways (jump them) and a rat call (rats from
+  the side pipes). Phase 2 at half health: faster swaps and tells, longer
+  waves, three rats per call. His rats die with him.
+
 Health and healing rules:
 
 - You start with **3 potions** and can carry at most **10**. Each potion heals
@@ -408,6 +438,8 @@ view. Legend:
 E  entrance   1-9  exit door N      g  Goblin     s  Slime
 h  Shield Goblin    a  Armored Slime    v  Cave Bat (flies; spawns in mid-air)
 ?  random enemy from the floor's pool (FloorData "enemies")
+r  Sewer Rat    > <  water current (floor)    ~  crumbling catwalk    L  lift track
+M  merchant
 C  chest      F  fountain           S  switch     i  sign     B  boss spawn
 X  stairs to the next floor (open once the boss is beaten)
 ^  spikes (replace the top floor row to make a 1-tile-deep spike pit)
@@ -417,6 +449,10 @@ x  explosive barrel   b  crate (holds a potion)   W  cracked wall (solid until b
 To add a variant of a room, make another scene with the same `room_id`,
 `room_type` and `exits`, and list both paths for that id in
 `scripts/FloorData.gd`. `make test` checks every variant.
+
+Rooms can also set `dark = true` (lit only by the player and Donut's magic),
+`secret = true` (awards Nosy Neighbour on entry) and `secret_exits` (exit
+indices whose doors sit behind cracked walls).
 
 Signs take their text from `signs`, in reading order. Write `{jump}`,
 `{switch_mode}` and so on (any input action name) to show the player's

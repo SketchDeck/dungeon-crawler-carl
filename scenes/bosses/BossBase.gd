@@ -11,6 +11,9 @@ signal phase_changed(phase: int)
 @export var boss_name := "BOSS"
 ## One-line tip shown in the banner when the fight starts.
 @export var boss_hint := ""
+## Banner text when phase 2 starts, and when the boss dies.
+@export var phase2_hint := "It's enraged!"
+@export var defeat_text := "The boss is down. Take the stairs."
 @export var guaranteed_potions := 2
 @export_range(0.0, 1.0) var phase2_health_ratio := 0.5
 

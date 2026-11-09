@@ -12,6 +12,9 @@ const GROUP := "run_stats"
 
 signal viewers_changed(viewers: int, gained: int)
 signal boxes_changed(count: int)
+signal gold_changed(gold: int)
+## The player asked to shop (at a safe-room merchant).
+signal shop_requested
 ## The player asked to open their loot boxes (at a safe-room fountain).
 signal loot_requested
 
@@ -33,6 +36,8 @@ var potions_used := 0
 var viewers := 0
 ## Loot box tiers (Achievements.Tier) waiting to be opened.
 var boxes: Array[int] = []
+## Gold from enemies, spent at shops. Carries over to the next floor like boxes.
+var gold := 0
 ## Floor modifiers (Milestone 12) multiply viewer gains.
 var viewer_multiplier := 1.0
 var timing := true
@@ -63,6 +68,8 @@ func reset(number: int, keep_boxes := false) -> void:
 	timing = true
 	if not keep_boxes:
 		boxes.clear()
+		gold = 0
+	gold_changed.emit(gold)
 	viewers_changed.emit(viewers, 0)
 	boxes_changed.emit(boxes.size())
 
@@ -92,6 +99,20 @@ func take_boxes() -> Array[int]:
 	boxes.clear()
 	boxes_changed.emit(0)
 	return taken
+
+
+func add_gold(amount: int) -> void:
+	gold += amount
+	gold_changed.emit(gold)
+
+
+## Spends gold if there's enough. Returns false otherwise.
+func spend_gold(amount: int) -> bool:
+	if gold < amount:
+		return false
+	gold -= amount
+	gold_changed.emit(gold)
+	return true
 
 
 func has_boxes() -> bool:

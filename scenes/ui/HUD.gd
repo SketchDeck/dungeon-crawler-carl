@@ -60,6 +60,7 @@ var _viewers_gain: Label
 var _viewers_pulse := 0.0
 var _boxes := 0
 var _viewers := 0
+var _gold := 0
 var modifiers_label: Label
 
 
@@ -191,6 +192,9 @@ func bind_run(stats: RunStats) -> void:
 	add_child(modifiers_label)
 	stats.viewers_changed.connect(_on_viewers_changed)
 	stats.boxes_changed.connect(_on_boxes_changed)
+	stats.gold_changed.connect(func(g: int) -> void:
+		_gold = g
+		_update_viewers_label())
 	_on_viewers_changed(stats.viewers, 0)
 
 
@@ -215,7 +219,7 @@ func _on_boxes_changed(count: int) -> void:
 
 
 func _update_viewers_label() -> void:
-	var text := "VIEWERS %s" % _group_digits(_viewers)
+	var text := "VIEWERS %s   ·   GOLD %d" % [_group_digits(_viewers), _gold]
 	if _boxes > 0:
 		text += "   ·   LOOT BOXES %d" % _boxes
 	viewers_label.text = text
@@ -316,14 +320,14 @@ func is_boss_bar_visible() -> bool:
 
 func _on_boss_phase(_phase: int) -> void:
 	_boss_fill.bg_color = Color("#ff5a1f")
-	var hint := "The Brute is enraged: faster attacks, longer shockwaves" if _boss is GoblinBoss \
-		else "It's mutating: more globs, acid everywhere, and it splits off little slimes"
+	var hint := _boss.phase2_hint if is_instance_valid(_boss) else ""
 	show_banner("PHASE 2", hint, Color("#ff5a1f"))
 
 
-func _on_boss_died(_enemy: EnemyBase) -> void:
+func _on_boss_died(enemy: EnemyBase) -> void:
 	_boss_hide_t = 2.0
-	show_banner("VICTORY", "The Goblin Brute is down. Take the stairs.", Color("#ffd34d"))
+	var text := (enemy as BossBase).defeat_text if enemy is BossBase else "Take the stairs."
+	show_banner("VICTORY", text, Color("#ffd34d"))
 
 
 func _update_boss_bar(delta: float) -> void:

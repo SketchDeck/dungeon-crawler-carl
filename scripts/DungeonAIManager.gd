@@ -109,6 +109,11 @@ func _on_room_entered(room: RoomBase) -> void:
 	room.encounter_cleared.connect(_on_encounter_cleared.bind(room))
 	room.boss_started.connect(func(_boss: BossBase) -> void: _boss_started_at = _clock)
 	room.boss_defeated.connect(_on_boss_defeated)
+	if room.secret:
+		award(&"secret_room", {
+			"title": "NOSY NEIGHBOUR!",
+			"description": "You found a secret room by kicking a wall until it gave up. Persistence is a kind of genius.",
+		})
 
 
 func _on_player_damaged(_amount: float) -> void:

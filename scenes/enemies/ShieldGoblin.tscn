@@ -13,6 +13,7 @@ script = ExtResource("1_shield")
 display_name = "Shield Goblin"
 max_health = 60.0
 chase_speed = 110.0
+gold_value = 3
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_body")

@@ -141,10 +141,10 @@ func player() -> Player:
 ## Up to `count` different upgrades, chosen at random and weighted by rarity
 ## (commons most often). Behaviour upgrades you already hold aren't offered.
 ## `min_rarity` limits the roll to that rarity or better (gold loot boxes).
-func roll(count := 3, min_rarity := Upgrade.Rarity.COMMON) -> Array[Upgrade]:
+func roll(count := 3, min_rarity := Upgrade.Rarity.COMMON, max_rarity := Upgrade.Rarity.EPIC) -> Array[Upgrade]:
 	var pool: Array[Upgrade] = []
 	for upgrade in POOL:
-		if upgrade.rarity >= min_rarity and (upgrade.is_stackable() or not active.has(upgrade)):
+		if upgrade.rarity >= min_rarity and upgrade.rarity <= max_rarity and (upgrade.is_stackable() or not active.has(upgrade)):
 			pool.append(upgrade)
 	var picked: Array[Upgrade] = []
 	while picked.size() < count and not pool.is_empty():

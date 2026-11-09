@@ -14,6 +14,7 @@ display_name = "Cave Bat"
 max_health = 20.0
 body_size = Vector2(26, 18)
 potion_drop_chance = 0.15
+gold_value = 1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_body")

@@ -148,7 +148,7 @@ func _run() -> void:
 	await _test("slime boss death clears minis and acid, drops potions", test_slime_boss_death)
 	await _test("slime boss sinks through one-way platforms", test_slime_boss_platforms)
 	await _test("Floor 1 Complete continues to Floor 2", test_continue_to_floor2)
-	await _test("beating Floor 2 unlocks Magic Burst and ends the run", test_floor2_complete)
+	await _test("beating Floor 2 unlocks Magic Burst and opens Floor 3", test_floor2_complete)
 	# Milestone 8 part 2: menus, settings, saves.
 	await _test("progress and settings share the save without clobbering", test_save_merge)
 	await _test("volume settings drive the audio buses and persist", test_settings_volume)
@@ -167,7 +167,7 @@ func _run() -> void:
 	await _test("music follows menus, floors and bosses", test_music)
 	await _test("every action works on a controller", test_controller_bindings)
 	await _test("prompts switch between keyboard and controller", test_controller_prompts)
-	await _test("full run: both floors, start to finish", test_full_run)
+	await _test("full run: all three floors, start to finish", test_full_run)
 	# Milestone 9: switching matters.
 	await _test("shield goblin blocks kicks from the front only", test_shield_goblin)
 	await _test("armored slime: magic splashes off until a heavy kick cracks it", test_armored_slime)
@@ -210,6 +210,18 @@ func _run() -> void:
 	await _test("explosive personality: enemies explode on death", test_modifier_explosive)
 	await _test("hard mode unlocks after Floor 2 and persists", test_hard_mode)
 	await _test("daily run uses the day's seed and two events", test_daily_run)
+	# Milestone 13: Floor 3.
+	await _test("floor 3 rooms match the layout document", test_floor3_graph)
+	await _test("rats telegraph, lunge and bite", test_rat_lunge)
+	await _test("currents carry whoever stands on them", test_currents)
+	await _test("crumbling catwalks fall away and grow back", test_crumble)
+	await _test("lifts slide along their track", test_lift)
+	await _test("dark rooms: Donut's magic is the light", test_dark_room)
+	await _test("enemies drop gold during a run", test_gold_drops)
+	await _test("shop sells potions, boxes and upgrades for gold", test_shop)
+	await _test("secret room behind a cracked wall", test_secret_room)
+	await _test("sewer king: stances resist the wrong mode and swap", test_sewer_king_stances)
+	await _test("sewer king: sweep, wave and rat call", test_sewer_king_attacks)
 	GameManager.floor_number = 1
 	SaveManager.delete_save()
 	print("\n%d passed, %d failed" % [_passed, _failed])
@@ -766,6 +778,22 @@ const FLOOR2_TYPES := {
 	"F2-D4": RoomBase.RoomType.CHALLENGE, "F2-06": RoomBase.RoomType.SAFE, "F2-07": RoomBase.RoomType.COMBAT,
 	"F2-08": RoomBase.RoomType.BOSS,
 }
+const FLOOR3_EXITS := {
+	"F3-01": ["F3-02"], "F3-02": ["F3-03"], "F3-03": ["F3-04"], "F3-04": ["F3-05"],
+	"F3-05": ["F3-U1", "F3-D1"],
+	"F3-U1": ["F3-U2"], "F3-U2": ["F3-06"],
+	"F3-D1": ["F3-D2", "F3-S1"], "F3-S1": ["F3-D2"], "F3-D2": ["F3-06"],
+	"F3-06": ["F3-07"], "F3-07": ["F3-08"], "F3-08": [],
+}
+const FLOOR3_TYPES := {
+	"F3-01": RoomBase.RoomType.ENTRANCE, "F3-02": RoomBase.RoomType.COMBAT,
+	"F3-03": RoomBase.RoomType.SAFE, "F3-04": RoomBase.RoomType.CHALLENGE,
+	"F3-05": RoomBase.RoomType.COMBAT, "F3-U1": RoomBase.RoomType.COMBAT,
+	"F3-U2": RoomBase.RoomType.CHALLENGE, "F3-D1": RoomBase.RoomType.COMBAT,
+	"F3-S1": RoomBase.RoomType.CHALLENGE, "F3-D2": RoomBase.RoomType.CHALLENGE,
+	"F3-06": RoomBase.RoomType.SAFE, "F3-07": RoomBase.RoomType.COMBAT,
+	"F3-08": RoomBase.RoomType.BOSS,
+}
 const FLOOR1_TYPES := {
 	"F1-01": RoomBase.RoomType.ENTRANCE, "F1-02": RoomBase.RoomType.COMBAT,
 	"F1-03": RoomBase.RoomType.SAFE, "F1-04": RoomBase.RoomType.CHALLENGE,
@@ -1069,12 +1097,16 @@ func _cell(rows: PackedStringArray, r: int, c: int) -> String:
 	return rows[r][c]
 
 
+## Solid cells. Water currents (> <) are solid floor. With gates open,
+## cracked walls (W) count as broken too (secret exits and chests behind them).
 func _blocks(ch: String, gates_open: bool) -> bool:
-	return ch == "#" or ch == "W" or (ch == "G" and not gates_open)
+	return ch == "#" or ch == ">" or ch == "<" or (ch == "W" and not gates_open) or (ch == "G" and not gates_open)
 
 
+## Cells you can stand on: solid ones, one-way platforms, crumbling catwalks
+## and lift tracks (the lift travels the whole run).
 func _supports(ch: String, gates_open: bool) -> bool:
-	return _blocks(ch, gates_open) or ch == "="
+	return _blocks(ch, gates_open) or ch == "=" or ch == "~" or ch == "L" or ch == "W"
 
 
 ## Standing at (r, c): body occupies rows r and r-1, feet rest on row r+1.
@@ -1138,7 +1170,7 @@ func _reachable(rows: PackedStringArray, start: Vector2i, gates_open: bool) -> D
 
 
 func test_rooms_reachable() -> void:
-	for floor_number in [1, 2]:
+	for floor_number in [1, 2, 3]:
 		_check_floor_reachable(floor_number)
 
 
@@ -1153,6 +1185,7 @@ func _check_room_reachable(path: String, id: String) -> void:
 	var rows: PackedStringArray = []
 	for line in room.layout.strip_edges().split("\n"):
 		rows.append(line.strip_edges())
+	var secret_exits := room.secret_exits
 	room.free()
 	var start := Vector2i(-1, -1)
 	for r in rows.size():
@@ -1170,12 +1203,14 @@ func _check_room_reachable(path: String, id: String) -> void:
 				check(after_gates.has(Vector2i(r - 1, c)), "%s: platform at row %d col %d is out of reach" % [id, r, c])
 				continue
 			# Ground enemies must be reachable; bats (v) fly to you.
-			var target := ch in ["C", "S", "F", "g", "s", "h", "a", "?", "B", "X"] or (ch >= "1" and ch <= "9")
+			var target := ch in ["C", "S", "F", "M", "g", "s", "h", "a", "r", "?", "B", "X"] or (ch >= "1" and ch <= "9")
 			if not target:
 				continue
 			# Chests may sit behind a trial gate; everything else must be
 			# reachable with gates closed.
-			var reach := after_gates if ch == "C" else before_gates
+			# Secret doors sit behind cracked walls, so they count once walls break.
+			var secret_door := ch >= "1" and ch <= "9" and secret_exits.has(ch.to_int() - 1)
+			var reach := after_gates if ch == "C" or secret_door else before_gates
 			check(reach.has(Vector2i(r, c)), "%s: '%s' at row %d col %d is unreachable" % [id, ch, r, c])
 
 
@@ -2543,7 +2578,8 @@ func test_floor2_complete() -> void:
 	p.global_position = room.floor_exit.global_position + Vector2(0, -30)
 	await frames(3)
 	check(screen.visible, "Floor Complete shown")
-	check(not (screen.get_node("%ContinueButton") as Button).visible, "no Floor 3")
+	check((screen.get_node("%ContinueButton") as Button).visible, "Continue to Floor 3")
+	check_eq(GameManager.highest_unlocked_floor, 3, "Floor 3 unlocked")
 	check((screen.get_node("%Body") as Label).text.contains("Mutating Slime"), "names the boss")
 	(screen.get_node("%ReplayButton") as Button).pressed.emit()
 	await frames(2)
@@ -2697,7 +2733,9 @@ func test_menu_continue() -> void:
 	check_eq(GameManager.floor_number, 1, "floor select can replay Floor 1")
 	menu.free()
 	GameManager.complete_floor(2)
-	check_eq(GameManager.continue_floor(), 2, "after the last floor, Continue stays on Floor 2")
+	check_eq(GameManager.continue_floor(), 3, "Floor 2 beaten: Continue goes to Floor 3")
+	GameManager.complete_floor(3)
+	check_eq(GameManager.continue_floor(), 3, "after the last floor, Continue stays on Floor 3")
 	GameManager.floor_number = 1
 	SaveManager.delete_save()
 	GameManager.reset_progress()
@@ -2826,7 +2864,7 @@ func test_sound_files() -> void:
 	check(names.size() >= 20, "found the sound calls (%d)" % names.size())
 	for sound: String in names:
 		check(ResourceLoader.exists("res://assets/sounds/%s.wav" % sound), "%s.wav exists (used in %s)" % [sound, names[sound]])
-	for track in ["menu", "floor1", "floor2", "boss"]:
+	for track in ["menu", "floor1", "floor2", "floor3", "boss"]:
 		check(ResourceLoader.exists("res://assets/music/%s.ogg" % track), "music %s exists" % track)
 
 
@@ -3024,12 +3062,25 @@ func test_full_run() -> void:
 	check_eq(rm.current_room_id, "F2-08", "reached the Mutating Slime")
 	await _beat_boss(m)
 	check(screen.visible, "Floor 2 complete")
-	check(GameManager.is_floor_completed(1) and GameManager.is_floor_completed(2), "both floors completed")
+	(screen.get_node("%ContinueButton") as Button).pressed.emit()
+	await frames(2)
+	# Floor 3 by the low road, through the secret stash.
+	var route3 := [["F3-01", 0], ["F3-02", 0], ["F3-03", 0], ["F3-04", 0], ["F3-05", 1], ["F3-D1", 1],
+		["F3-S1", 0], ["F3-D2", 0], ["F3-06", 0], ["F3-07", 0]]
+	for step: Array in route3:
+		check_eq(rm.current_room_id, step[0], "in %s" % step[0])
+		await _clear_room(m, step[1])
+	check_eq(rm.current_room_id, "F3-08", "reached the Sewer King")
+	await _beat_boss(m)
+	check(screen.visible, "Floor 3 complete")
+	check(not (screen.get_node("%ContinueButton") as Button).visible, "no Floor 4")
+	check(GameManager.is_floor_completed(1) and GameManager.is_floor_completed(2) and GameManager.is_floor_completed(3),
+		"all floors completed")
 	check(GameManager.is_unlocked(GameManager.EXPLOSIVE_KICK) and GameManager.is_unlocked(GameManager.AREA_BURST),
 		"both specials unlocked")
 	SaveManager.reload()
 	GameManager.load_progress()
-	check_eq(GameManager.continue_floor(), 2, "Continue offers Floor 2 after a reload")
+	check_eq(GameManager.continue_floor(), 3, "Continue offers Floor 3 after a reload")
 	get_tree().paused = false
 	GameManager.floor_number = 1
 	SaveManager.delete_save()
@@ -3834,3 +3885,285 @@ func test_daily_run() -> void:
 	GameManager.daily_run = false
 	GameManager.reset_progress()
 	GameManager.reset_profile()
+
+
+# --- Milestone 13: Floor 3 ----------------------------------------------------------
+
+const RAT_SCENE := preload("res://scenes/enemies/Rat.tscn")
+const SEWER_KING_SCENE := preload("res://scenes/bosses/SewerKing.tscn")
+
+
+func test_floor3_graph() -> void:
+	await _check_floor_graph(3, "F3-01", FLOOR3_EXITS, FLOOR3_TYPES)
+
+
+func test_rat_lunge() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	p.health._invuln = 0.0
+	var r := spawn_scene(w, RAT_SCENE, Vector2(160, -8), true) as Rat
+	var saw_windup := [false]
+	var hurt := [false]
+	p.health.damaged.connect(func(_a: float) -> void: hurt[0] = true)
+	for i in secs(3.0):
+		await get_tree().physics_frame
+		if r.state == Rat.State.WINDUP:
+			saw_windup[0] = true
+		if hurt[0]:
+			break
+	check(saw_windup[0], "lunge telegraphed")
+	check(hurt[0], "lunge bit the player")
+	check_eq(p.health.current, 100.0 - r.contact_damage, "rat damage")
+
+
+func test_currents() -> void:
+	var w := world()
+	var c := Current.new()
+	c.position = Vector2(-200, 0)
+	c.size = Vector2(400, 32)
+	c.speed = 140.0
+	w.add_child(c)
+	var p := spawn_player(w, 0.0)
+	await frames(5)
+	var x := p.global_position.x
+	await frames(secs(1.0))
+	check(p.global_position.x - x > 100.0, "carried right (%.0f px)" % (p.global_position.x - x))
+	var g := spawn_goblin(w, -100.0)
+	await frames(5)
+	var gx := g.global_position.x
+	await frames(secs(0.5))
+	check(g.global_position.x > gx + 40.0, "enemies drift too")
+
+
+func test_crumble() -> void:
+	var w := world()
+	var cp := CrumblePlatform.new()
+	cp.position = Vector2(-48, -96)
+	cp.size = Vector2(96, 12)
+	w.add_child(cp)
+	var p := spawn_player(w, 0.0)
+	p.position = Vector2(0, -96 - 29)
+	await frames(5)
+	check(p.is_on_floor() and p.global_position.y < -100.0, "standing on the catwalk")
+	await until(func() -> bool: return cp.crumbling)
+	await frames(secs(0.6))
+	check(cp.gone, "it fell away")
+	await frames(secs(0.4))
+	check(p.global_position.y > -60.0, "the player dropped")
+	await frames(secs(2.6))
+	check(not cp.gone, "it grew back")
+
+
+func test_lift() -> void:
+	var w := world()
+	var lift := MovingPlatform.new()
+	lift.from_x = 0.0
+	lift.to_x = 128.0
+	lift.speed = 128.0
+	lift.position = Vector2(0, -96)
+	w.add_child(lift)
+	await frames(secs(1.05))
+	check(lift.position.x >= 127.0, "reached the end (x=%.0f)" % lift.position.x)
+	await frames(secs(1.8))
+	check(lift.position.x < 64.0, "and comes back (x=%.0f)" % lift.position.x)
+
+
+func test_dark_room() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var rm := rooms_of(m)
+	GameManager.floor_number = 3
+	rm.start_floor(3)
+	use_default_variants(m)
+	var room := rm.load_room("F3-U1")
+	await frames(2)
+	check(room.dark and room.dark_room != null, "the tunnel is dark")
+	var mods := room.dark_room.find_children("", "CanvasModulate", false, false)
+	check_eq(mods.size(), 1, "screen dimmed")
+	var carl_scale := room.dark_room.player_light_scale(p)
+	p.combat.request_switch()
+	check(room.dark_room.player_light_scale(p) > carl_scale * 1.5, "Donut's glow is much bigger")
+	p.combat.magic_missile.press()
+	await frames(6)
+	var lit := 0
+	for b in get_tree().get_nodes_in_group(MagicProjectile.GROUP):
+		if (b as Node).get_node_or_null("Light"):
+			lit += 1
+	check(lit >= 1, "bolts light their way")
+	var lit_room := rm.load_room("F3-02")
+	check(lit_room.dark_room == null, "other rooms aren't dark")
+	GameManager.floor_number = 1
+
+
+func test_gold_drops() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var stats := stats_of(m)
+	var room := rooms_of(m).current_room
+	await frames(2)
+	var g := spawn_goblin(room, p.global_position.x + 60.0)
+	g.global_position.y = p.global_position.y
+	await frames(2)
+	var value := g.gold_value
+	g.take_hit(Hit.new(999.0))
+	await frames(secs(0.8))
+	var coins := room.find_children("", "Area2D", true, false).filter(func(n: Node) -> bool: return n is GoldPickup)
+	check_eq(coins.size(), 1, "a coin dropped")
+	if not coins.is_empty():
+		p.global_position = (coins[0] as Node2D).global_position + Vector2(0, -10)
+	await frames(3)
+	check_eq(stats.gold, value, "picked up the goblin's gold")
+	var hud: HUD = m.get("hud")
+	check(hud.viewers_label.text.contains("GOLD %d" % value), "HUD shows gold")
+	var w := world()
+	var g2 := spawn_goblin(w, 500.0)
+	g2.take_hit(Hit.new(999.0))
+	await frames(2)
+	var dropped := 0
+	for c in w.get_children():
+		if c is GoldPickup:
+			dropped += 1
+	check(dropped <= 1, "one pickup per enemy")
+
+
+func test_shop() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var stats := stats_of(m)
+	var shop: ShopScreen = m.get("shop_screen")
+	var picks: UpgradeSelectionScreen = m.get("upgrade_selection")
+	var ai := ai_of(m)
+	var rm := rooms_of(m)
+	GameManager.floor_number = 3
+	rm.start_floor(3)
+	use_default_variants(m)
+	var room := rm.load_room("F3-03")
+	await frames(2)
+	check(room.merchant != null, "merchant in the junction")
+	check(room.merchant.interact(), "talking to the merchant")
+	check(shop.is_open() and get_tree().paused, "shop opens and pauses")
+	check_eq(shop.buy("potion"), "", "no gold, no potion")
+	stats.add_gold(200)
+	p.potions.reset(3)
+	check(shop.buy("potion") != "", "bought a potion")
+	check_eq(p.potions.count, 4, "potion added")
+	check_eq(stats.gold, 188, "paid 12")
+	check(ai.history.has(&"shopper"), "Valued Customer")
+	var boxes_before := stats.boxes.size()  # Valued Customer already paid one
+	check(shop.buy("bronze_box") != "", "bought a box")
+	check_eq(stats.boxes.size(), boxes_before + 1, "box waiting")
+	check(shop.buy("stat_upgrade") != "", "bought a stat upgrade")
+	shop.close()
+	await frames(1)
+	check(picks.visible, "upgrade choice after leaving")
+	for c in picks.choices:
+		check_eq(c.rarity, Upgrade.Rarity.COMMON, "stat upgrade picks are commons")
+	picks.cards()[0].pressed.emit()
+	await frames(1)
+	check(not get_tree().paused, "back to the game")
+	check_eq(stats.gold, 188 - 20 - 40, "gold spent")
+	m.restart_floor()
+	check_eq(stats.gold, 0, "restarting a floor loses gold")
+	GameManager.floor_number = 1
+
+
+func test_secret_room() -> void:
+	var m := spawn_main()
+	var ai := ai_of(m)
+	var rm := rooms_of(m)
+	GameManager.floor_number = 3
+	rm.start_floor(3)
+	use_default_variants(m)
+	var room := rm.load_room("F3-D1")
+	await frames(2)
+	check(room.secret_exits.has(1), "door 2 is secret")
+	var door: Door = room.doors.filter(func(d: Door) -> bool: return d.exit_index == 1)[0]
+	var walls := room.find_children("", "Breakable", true, false).filter(func(b: Node) -> bool:
+		return (b as Breakable).kind == Breakable.Kind.WALL)
+	check_eq(walls.size(), 1, "a cracked wall")
+	var wall := walls[0] as Breakable
+	var wall_x := wall.global_position.x + wall.size.x * 0.5
+	check(wall_x > door.global_position.x and wall_x - door.global_position.x < 4 * 32,
+		"the wall guards the door (wall %.0f, door %.0f)" % [wall_x, door.global_position.x])
+	check(not ai.history.has(&"secret_room"), "not found yet")
+	rm.load_room("F3-S1")
+	await frames(1)
+	check(ai.history.has(&"secret_room"), "Nosy Neighbour on entering")
+	GameManager.floor_number = 1
+
+
+func spawn_king(w: Node2D, x: float) -> SewerKing:
+	var k := SEWER_KING_SCENE.instantiate() as SewerKing
+	k.position = Vector2(x, -32)
+	w.add_child(k)
+	return k
+
+
+func test_sewer_king_stances() -> void:
+	var w := world()
+	var p := spawn_player(w, -300.0)
+	p.health._invuln = 99.0
+	var k := spawn_king(w, 200.0)
+	await frames(2)
+	k.start_fight()
+	await until(func() -> bool: return not k.is_immune())
+	k.forced_attack = SewerKing.Attack.WAVE
+	check_eq(k.stance, SewerKing.Stance.SLICK, "starts slick")
+	check_eq(k.weakness(), EnemyBase.Weakness.MAGIC, "slick: weak to magic")
+	var hp := k.health
+	k.take_hit(Hit.new(30.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	check_eq(k.health, hp, "kicks slide off")
+	k.take_hit(Hit.new(30.0, Vector2.ZERO, p, PackedStringArray(["magic"])))
+	check_eq(k.health, hp - 30.0, "magic hurts")
+	k.take_hit(Hit.new(45.0, Vector2.ZERO, p, PackedStringArray(["magic"])))
+	check_eq(k.stance, SewerKing.Stance.PLATED, "swaps after enough damage")
+	hp = k.health
+	k.take_hit(Hit.new(20.0, Vector2.ZERO, p, PackedStringArray(["magic"])))
+	check_eq(k.health, hp, "plated: magic splashes off")
+	k.take_hit(Hit.new(20.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	check_eq(k.health, hp - 20.0, "plated: kicks hurt")
+	await frames(secs(k.stance_time + 0.2))
+	check_eq(k.stance, SewerKing.Stance.SLICK, "swaps on a timer too")
+
+
+func test_sewer_king_attacks() -> void:
+	var w := world()
+	var p := spawn_player(w, 120.0)
+	var k := spawn_king(w, 200.0)
+	await frames(2)
+	k.start_fight()
+	await until(func() -> bool: return not k.is_immune())
+	k.forced_attack = SewerKing.Attack.SWEEP
+	p.health._invuln = 0.0
+	var hurt := [0.0]
+	p.health.damaged.connect(func(a: float) -> void: hurt[0] += a)
+	await until(func() -> bool: return k.state == SewerKing.State.TELEGRAPH, secs(3.0))
+	check(k.is_telegraphing(), "sweep is telegraphed")
+	await until(func() -> bool: return k.state == SewerKing.State.ACTIVE, secs(2.0))
+	check_eq(hurt[0], k.sweep_damage, "sweep hits a grounded player")
+	await until(func() -> bool: return k.state == SewerKing.State.TELEGRAPH, secs(4.0))
+	# Jump over the next sweep, just before it lands.
+	await until(func() -> bool: return k.state == SewerKing.State.TELEGRAPH and k._t < 0.1, secs(2.0))
+	p.health._invuln = 0.0
+	p.global_position.y = -160.0
+	p.velocity = Vector2.ZERO
+	hurt[0] = 0.0
+	await until(func() -> bool: return k.state == SewerKing.State.ACTIVE, secs(2.0))
+	check_eq(hurt[0], 0.0, "jumping avoids the sweep")
+	k.forced_attack = SewerKing.Attack.SUMMON
+	await until(func() -> bool: return not k.rats.is_empty(), secs(5.0))
+	check_eq(k.rats.size(), k.rats_per_call, "rats called")
+	k.forced_attack = SewerKing.Attack.WAVE
+	var waves := [0]
+	await until(func() -> bool:
+		waves[0] = 0
+		for c in w.get_children():
+			if c is Shockwave:
+				waves[0] += 1
+		return waves[0] > 0, secs(5.0))
+	check_eq(waves[0], 2, "waves both ways")
+	var rats := k.rats.duplicate()
+	p.health._invuln = 99.0
+	k.take_hit(Hit.new(9999.0, Vector2.ZERO, null, PackedStringArray(["explosion"])))
+	check(k.is_dead, "king down")
+	check(rats.all(func(r: EnemyBase) -> bool: return not is_instance_valid(r) or r.is_dead), "his rats die with him")

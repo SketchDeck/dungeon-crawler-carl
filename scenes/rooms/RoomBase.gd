@@ -11,6 +11,11 @@ extends Node2D
 ##   h  Shield Goblin (blocks kicks from the front)   a  Armored Slime (shell blocks magic)
 ##   v  Cave Bat (flies; spawns where the v is)
 ##   ?  a random enemy from the floor's pool (FloorData `enemies`)
+##   r  Sewer Rat
+##   > <  water current (solid floor that carries you right / left)
+##   ~  crumbling platform (one-way; falls away when you stand on it, grows back)
+##   L  lift track: a moving platform slides back and forth along the run of L's
+##   M  merchant (shop)
 ##   S  trial switch           i  sign (texts from `signs`, in reading order)
 ##   B  boss spawn (boss rooms)    X  stairs to the next floor (open once the boss is beaten)
 ##   ^  spikes (put them in a 1-tile-deep pit)
@@ -40,6 +45,8 @@ const SLIME_SCENE := preload("res://scenes/enemies/Slime.tscn")
 const SHIELD_GOBLIN_SCENE := preload("res://scenes/enemies/ShieldGoblin.tscn")
 const ARMORED_SLIME_SCENE := preload("res://scenes/enemies/ArmoredSlime.tscn")
 const BAT_SCENE := preload("res://scenes/enemies/Bat.tscn")
+const RAT_SCENE := preload("res://scenes/enemies/Rat.tscn")
+const CURRENT_SPEED := 140.0
 
 @export var room_id := ""
 @export var display_name := ""
@@ -60,6 +67,12 @@ const BAT_SCENE := preload("res://scenes/enemies/Bat.tscn")
 ## Camera limits; computed from the layout when one is given.
 @export var bounds := Rect2(0, 0, 1280, 640)
 @export var backdrop_color := Color("#1a2230")
+## Dark rooms are dimmed; only Carl's glow, Donut's magic and a few markers light them.
+@export var dark := false
+## Secret rooms award the Nosy Neighbour achievement when you find them.
+@export var secret := false
+## Exit indices hidden behind cracked walls (so tests know they need breaking).
+@export var secret_exits: PackedInt32Array
 @export_multiline var layout := ""
 
 ## Persistent progress: cleared, trial_done, reward_claimed, fountain_used.
@@ -81,6 +94,8 @@ var encounter_active := false
 var boss_spawn := Vector2.ZERO
 var boss: BossBase
 var floor_exit: FloorExit
+var merchant: Merchant
+var dark_room: DarkRoom
 
 var _spawn := Vector2.ZERO
 var _gates: Array[SolidBlock] = []
@@ -271,6 +286,27 @@ func _build_from_layout() -> void:
 		wall.position = Vector2(rect.position * TILE)
 		wall.size = Vector2(rect.size * TILE)
 		_terrain.add_child(wall)
+	for ch in [">", "<"]:
+		for rect in _merge_tiles(rows, ch):
+			var block := _add_block(rect, false)
+			block.color = Color("#24505a")
+			var current := Current.new()
+			current.position = Vector2(rect.position * TILE)
+			current.size = Vector2(rect.size * TILE)
+			current.speed = CURRENT_SPEED if ch == ">" else -CURRENT_SPEED
+			_objects.add_child(current)
+	for rect in _merge_tiles(rows, "~"):
+		var crumble := CrumblePlatform.new()
+		crumble.position = Vector2(rect.position * TILE)
+		crumble.size = Vector2(rect.size.x * TILE, 12)
+		_terrain.add_child(crumble)
+	for rect in _merge_tiles(rows, "L"):
+		var lift := MovingPlatform.new()
+		lift.width = 3 * TILE
+		lift.from_x = rect.position.x * TILE
+		lift.to_x = maxf(lift.from_x, (rect.end.x - 3) * TILE)
+		lift.position = Vector2(lift.from_x, rect.position.y * TILE)
+		_terrain.add_child(lift)
 	var gate_rects := _merge_tiles(rows, "G")
 	if not is_trial_done():
 		for rect in gate_rects:
@@ -306,6 +342,13 @@ func _build_from_layout() -> void:
 				"v":
 					if spawn_enemies:
 						_spawn_enemy(BAT_SCENE, foot - Vector2(0, TILE * 0.5))
+				"r":
+					if spawn_enemies:
+						_spawn_enemy(RAT_SCENE, foot - Vector2(0, 8))
+				"M":
+					merchant = Merchant.new()
+					merchant.position = foot
+					_objects.add_child(merchant)
 				"C":
 					chest = Chest.new()
 					chest.position = foot
@@ -366,6 +409,15 @@ func _build_from_layout() -> void:
 						door.entered.connect(_on_door_entered)
 						doors.append(door)
 						_objects.add_child(door)
+	if dark:
+		dark_room = DarkRoom.new()
+		dark_room.name = "DarkRoom"
+		add_child(dark_room)
+		for door in doors:
+			dark_room.add_marker(door.global_position + Vector2(0, -40))
+		for thing: Node2D in [fountain, chest, merchant, floor_exit]:
+			if thing:
+				dark_room.add_marker(thing.global_position + Vector2(0, -30), Color(0.7, 0.9, 1.0))
 	queue_redraw()
 
 

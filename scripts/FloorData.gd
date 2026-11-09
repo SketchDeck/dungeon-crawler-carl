@@ -52,6 +52,27 @@ const FLOORS := {
 			"F2-08": "res://scenes/rooms/floor2/F2_08_Boss.tscn",
 		},
 	},
+	3: {
+		"name": "Floor 3",
+		"boss": "Sewer King",
+		"start": "F3-01",
+		"enemies": ["r", "r", "v", "h", "a"],
+		"rooms": {
+			"F3-01": "res://scenes/rooms/floor3/F3_01_Entrance.tscn",
+			"F3-02": "res://scenes/rooms/floor3/F3_02_Combat.tscn",
+			"F3-03": "res://scenes/rooms/floor3/F3_03_Safe.tscn",
+			"F3-04": "res://scenes/rooms/floor3/F3_04_Challenge.tscn",
+			"F3-05": "res://scenes/rooms/floor3/F3_05_Combat.tscn",
+			"F3-U1": "res://scenes/rooms/floor3/F3_U1_Combat.tscn",
+			"F3-U2": "res://scenes/rooms/floor3/F3_U2_Challenge.tscn",
+			"F3-D1": "res://scenes/rooms/floor3/F3_D1_Combat.tscn",
+			"F3-S1": "res://scenes/rooms/floor3/F3_S1_Secret.tscn",
+			"F3-D2": "res://scenes/rooms/floor3/F3_D2_Challenge.tscn",
+			"F3-06": "res://scenes/rooms/floor3/F3_06_Safe.tscn",
+			"F3-07": "res://scenes/rooms/floor3/F3_07_Combat.tscn",
+			"F3-08": "res://scenes/rooms/floor3/F3_08_Boss.tscn",
+		},
+	},
 }
 
 

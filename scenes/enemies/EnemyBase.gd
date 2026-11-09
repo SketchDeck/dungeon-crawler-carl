@@ -42,6 +42,8 @@ const LAUNCH_MIN_LIFT := 150.0
 @export var collision_self_damage := 8.0
 @export_group("Drops")
 @export_range(0.0, 1.0) var potion_drop_chance := 0.2
+## Gold coins dropped on death (only during a real run, see RunStats).
+@export var gold_value := 2
 @export_group("")
 ## Tests disable AI to keep enemies stationary.
 @export var ai_enabled := true
@@ -226,6 +228,7 @@ func die(hit: Hit = null) -> void:
 	Fx.burst(global_position, body_color(), 34.0, 0.35)
 	if should_drop_potion(rng.randf()):
 		drop_potion()
+	drop_gold()
 	died.emit(self)
 	GameManager.enemy_died.emit(self)
 
@@ -241,6 +244,17 @@ func drop_potion() -> PotionPickup:
 	# Deferred: deaths happen during physics callbacks.
 	get_parent().add_child.call_deferred(potion)
 	return potion
+
+
+func drop_gold() -> GoldPickup:
+	if gold_value <= 0 or get_tree().get_first_node_in_group(RunStats.GROUP) == null:
+		return null
+	var coin := GoldPickup.new()
+	coin.amount = gold_value
+	coin.position = position + Vector2(0, -10)
+	coin.launch(Vector2(rng.randf_range(-80, 80), -300))
+	get_parent().add_child.call_deferred(coin)
+	return coin
 
 
 func set_engaged(value: bool) -> void:

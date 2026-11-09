@@ -19,6 +19,7 @@ hop_interval = 0.8
 hop_speed = 210.0
 hop_velocity = 360.0
 contact_damage = 6.0
+gold_value = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_body")

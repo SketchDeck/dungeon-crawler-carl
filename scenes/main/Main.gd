@@ -37,6 +37,16 @@ var _new_unlocks: Array[StringName] = []
 ## The floor run's record (viewers, kills, loot boxes...).
 var run_stats: RunStats
 var loot_screen: LootBoxScreen
+var shop_screen: ShopScreen
+## Shop prices in gold.
+const SHOP_STOCK: Array[Dictionary] = [
+	{"id": "potion", "name": "Health potion", "description": "Heals 30 HP when you drink it.", "price": 12},
+	{"id": "bronze_box", "name": "Bronze loot box", "description": "Open it at the fountain.", "price": 20},
+	{"id": "stat_upgrade", "name": "Stat upgrade", "description": "Choose one of three common upgrades.", "price": 40},
+	{"id": "rare_upgrade", "name": "Rare upgrade", "description": "Choose one of three rare or epic upgrades.", "price": 85},
+]
+## Upgrade picks bought in the shop, offered when it closes: rarity floor per pick.
+var _shop_picks: Array[int] = []
 ## Upgrade choices still owed from gold loot boxes.
 var _pending_picks := 0
 var _rng := RandomNumberGenerator.new()
@@ -56,6 +66,13 @@ func _ready() -> void:
 	add_child(loot_screen)
 	loot_screen.closed.connect(_on_loot_closed)
 	run_stats.loot_requested.connect(open_loot_boxes)
+	shop_screen = ShopScreen.new()
+	shop_screen.name = "Shop"
+	shop_screen.buyer = buy_item
+	shop_screen.gold_source = func() -> int: return run_stats.gold
+	add_child(shop_screen)
+	shop_screen.closed.connect(_offer_pending_pick)
+	run_stats.shop_requested.connect(open_shop)
 	hud.bind_player(player)
 	hud.bind_rooms(room_manager)
 	hud.bind_run(run_stats)
@@ -216,7 +233,7 @@ func _on_upgrade_chosen(upgrade: Upgrade) -> void:
 # --- Loot boxes -------------------------------------------------------------------
 
 func open_loot_boxes() -> void:
-	if loot_screen.is_open() or upgrade_selection.visible or not run_stats.has_boxes():
+	if loot_screen.is_open() or shop_screen.is_open() or upgrade_selection.visible or not run_stats.has_boxes():
 		return
 	loot_screen.open_boxes(run_stats.take_boxes())
 
@@ -256,12 +273,58 @@ func open_loot_box(tier: int) -> String:
 			return "\n".join(lines)
 
 
+# --- Shop -----------------------------------------------------------------------------
+
+func open_shop() -> void:
+	if shop_screen.is_open() or loot_screen.is_open() or upgrade_selection.visible:
+		return
+	shop_screen.open(SHOP_STOCK)
+
+
+## Applies a purchase. Returns a message, or "" if it couldn't be bought.
+func buy_item(item_id: String) -> String:
+	var item: Dictionary = {}
+	for entry in SHOP_STOCK:
+		if entry["id"] == item_id:
+			item = entry
+	if item.is_empty() or run_stats.gold < int(item["price"]):
+		return ""
+	if item_id == "potion" and player.potions.is_full():
+		return ""
+	run_stats.spend_gold(int(item["price"]))
+	dungeon_ai.award(&"shopper", {
+		"title": "VALUED CUSTOMER!",
+		"description": "You paid actual money in a dungeon. The shopkeeper is weeping with joy. Or laughing. Hard to tell.",
+	})
+	match item_id:
+		"potion":
+			player.potions.add()
+			return "A potion! It fizzes ominously."
+		"bronze_box":
+			run_stats.add_box(Achievements.Tier.BRONZE)
+			return "A bronze box. Open it at the fountain."
+		"stat_upgrade":
+			_shop_picks.append(Upgrade.Rarity.COMMON)
+			return "Pick your upgrade when you leave the shop."
+		"rare_upgrade":
+			_shop_picks.append(Upgrade.Rarity.RARE)
+			return "Pick your rare upgrade when you leave the shop."
+	return ""
+
+
 func _on_loot_closed() -> void:
 	_offer_pending_pick()
 
 
 func _offer_pending_pick() -> void:
-	if _pending_picks <= 0 or upgrade_selection.visible or loot_screen.is_open():
+	if upgrade_selection.visible or loot_screen.is_open() or shop_screen.is_open():
+		return
+	if not _shop_picks.is_empty():
+		var min_rarity: int = _shop_picks.pop_front()
+		var max_rarity := Upgrade.Rarity.COMMON if min_rarity == Upgrade.Rarity.COMMON else Upgrade.Rarity.EPIC
+		upgrade_selection.show_choices(player.upgrades.roll(3, min_rarity, max_rarity))
+		return
+	if _pending_picks <= 0:
 		return
 	_pending_picks -= 1
 	upgrade_selection.show_choices(player.upgrades.roll(3, Upgrade.Rarity.RARE))

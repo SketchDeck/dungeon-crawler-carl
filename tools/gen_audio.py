@@ -152,6 +152,10 @@ SFX = {
     # Impacts
     "block": lambda: mix(tone(1500, 0.07, "square", 1100, vol=0.3, duty=0.3), tone(2300, 0.12, "sine", 2100, vol=0.25),
                          noise(0.05, 0.4, cutoff=0.9, seed=31)),
+    "squeak": lambda: tone(1800, 0.09, "square", 2600, vol=0.25, duty=0.2, vibrato=0.05, vib_rate=50),
+    "coin": lambda: seq([(note("B5"), 0.05), (note("E6"), 0.12)], "square", 0.28, duty=0.25),
+    "crumble": lambda: mix(*[noise(0.08, 0.5, cutoff=0.3, seed=40 + i) for i in range(4)], offsets=[0, 0.06, 0.13, 0.2]),
+    "buy": lambda: seq([(note("E5"), 0.06), (note("A5"), 0.06), (note("C#6"), 0.06), (note("E6"), 0.2)], "square", 0.3, duty=0.25),
     "hit": lambda: mix(noise(0.07, 0.7, cutoff=0.8, seed=2), tone(220, 0.07, "square", 120, vol=0.3)),
     "enemy_death": lambda: mix(tone(420, 0.32, "square", 70, vol=0.35, duty=0.4), noise(0.2, 0.35, cutoff=0.4, seed=9)),
     "explosion": lambda: mix(noise(0.7, 1.0, cutoff=0.9, cutoff_end=0.02, seed=11), tone(80, 0.5, "sine", 35, vol=0.9)),
@@ -237,6 +241,7 @@ A_MINOR = ["A4", "B4", "C5", "D5", "E5", "F5", "G5", "A5"]
 D_MINOR = ["D4", "E4", "F4", "G4", "A4", "A#4", "C5", "D5"]
 E_MINOR = ["E4", "F#4", "G4", "A4", "B4", "C5", "D5", "E5"]
 C_MAJOR = ["C5", "D5", "E5", "G5", "A5", "C6"]
+G_MINOR = ["G4", "A4", "A#4", "C5", "D5", "D#5", "F5", "G5"]
 
 MUSIC = {
     "menu": lambda: track(84, [("C3", ["C5", "E5", "G5"]), ("A2", ["A4", "C5", "E5"]),
@@ -248,6 +253,9 @@ MUSIC = {
     "floor2": lambda: track(100, [("D3", ["D4", "F4", "A4"]), ("A#2", ["A#4", "D5", "F5"]),
                                   ("F2", ["F4", "A4", "C5"]), ("A2", ["A4", "C#5", "E5"])] * 2,
                             D_MINOR, seed=22, lead_duty=0.5),
+    "floor3": lambda: track(92, [("G2", ["G4", "A#4", "D5"]), ("D#2", ["D#4", "G4", "A#4"]),
+                                 ("C3", ["C5", "D#5", "G5"]), ("D3", ["D4", "F#4", "A4"])] * 2,
+                            G_MINOR, seed=44, lead_kind="tri", lead_vol=0.18, bass_eighths=True),
     "boss": lambda: track(150, [("E2", ["E4", "G4", "B4"]), ("E2", ["E4", "G4", "B4"]),
                                 ("C3", ["C5", "E5", "G5"]), ("D3", ["D5", "F#5", "A5"])] * 2,
                           E_MINOR, seed=33, bass_eighths=True, lead_vol=0.12),

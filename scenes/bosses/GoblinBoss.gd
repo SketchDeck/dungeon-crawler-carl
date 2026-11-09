@@ -79,6 +79,8 @@ var _anim := 0.0
 func _init() -> void:
 	boss_name = "GOBLIN BRUTE"
 	boss_hint = "Learn his tells: crouch = charge, fists up = slam (jump!), club back = swing"
+	phase2_hint = "The Brute is enraged: faster attacks, longer shockwaves"
+	defeat_text = "The Goblin Brute is down. Take the stairs."
 
 
 func _ready() -> void:
