@@ -99,11 +99,28 @@ Treasure and temporary upgrades:
 - Opening a challenge room's chest pauses the game and offers **three random
   upgrades** (name and effect). Pick one with the mouse, keyboard or
   controller.
-- The six upgrades are Steel-Toed Boots (+25% kick damage), Tiara Polish
-  (+25% magic damage), Extra Oomph (+30% knockback), Quick Reflexes (−20%
-  cooldowns), Hearty Snack (+20 max HP) and Fresh Socks (+12% move speed).
-  Their strengths live in `resources/upgrades/*.tres`. Upgrades stack;
-  cooldowns never drop below 40%.
+- Each card shows its rarity: **common** (grey), **rare** (blue) or
+  **epic** (purple). Commons come up most often, epics least.
+- **Commons** are stat boosts and stack: Steel-Toed Boots (+25% kick
+  damage), Tiara Polish (+25% magic damage), Extra Oomph (+30% knockback),
+  Quick Reflexes (−20% cooldowns), Hearty Snack (+20 max HP) and Fresh Socks
+  (+12% move speed). Cooldowns never drop below 40%.
+- **Rares and epics** change how you play. You can hold one of each, and
+  a chest never offers one you already have:
+  - Laser-Guided Tiara (rare): bolts fly through enemies.
+  - Seismic Stomp (rare): the third kick sends a 14-damage shockwave along
+    the floor.
+  - Hot Feet (rare): dodging leaves fire (6 damage every 0.3s).
+  - Explosive Digestion (rare): drinking a potion blasts nearby enemies (20).
+  - Tag-In Fury (rare): switching modes gives +50% damage for 1.5s.
+  - Bloodthirsty Cat (rare): each kill heals 4 HP.
+  - Tag Team (rare): switching instantly readies the new mode's attacks.
+    Pairs well with Tag-In Fury.
+  - Volatile Corpses (epic): enemies you kill explode for 15 damage, which
+    can chain.
+  - Double Tap (epic): magic missiles fire a second bolt at 60% damage.
+  - Juggle Master (epic): juggling does ×3 magic damage instead of ×2.
+- Strengths live in `resources/upgrades/*.tres` (`amount`, `rarity`).
 - Upgrades last for the current floor: you keep them when you lose a life,
   and lose them when the floor restarts (Game Over or Replay) or is completed.
   The HUD lists the ones you have.

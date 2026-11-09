@@ -29,6 +29,12 @@ var knockback_multiplier := 1.0
 var cooldown_multiplier := 1.0
 ## Damage multiplier for magic hits on launched enemies (upgrades raise it).
 var juggle_multiplier := EnemyBase.JUGGLE_MULTIPLIER
+## Behaviour upgrades (set by PlayerUpgrades).
+var pierce_bolts := false
+## Damage fraction of Double Tap's extra bolt (0 = no extra bolt).
+var twin_bolt_factor := 0.0
+## Damage of Seismic Stomp's finisher shockwave (0 = none).
+var kick_wave_damage := 0.0
 
 var mode := Mode.CARL
 ## A switch requested during a windup, applied once the attack fires.
@@ -204,7 +210,7 @@ func strike(local_box: Rect2, hit: Hit, heavy: bool, color: Color) -> int:
 
 
 ## Launches one of Donut's bolts in the facing direction.
-func fire_projectile(hit: Hit, radius: float, speed: float, max_range: float, heavy: bool) -> MagicProjectile:
+func fire_projectile(hit: Hit, radius: float, speed: float, max_range: float, heavy: bool, y_offset := 0.0) -> MagicProjectile:
 	hit.knockback.x *= player.facing
 	var bolt := MagicProjectile.new()
 	bolt.hit = hit
@@ -216,14 +222,26 @@ func fire_projectile(hit: Hit, radius: float, speed: float, max_range: float, he
 	bolt.heavy = heavy
 	bolt.color = DONUT_COLOR.lerp(Color("#ff8af0"), 0.35) if heavy else DONUT_COLOR
 	bolt.mask = target_mask | HitQuery.LAYER_WORLD
+	bolt.pierce = pierce_bolts
 	bolt.hit_target.connect(_on_projectile_hit)
-	var origin := player.global_position + Vector2(projectile_origin.x * player.facing, projectile_origin.y)
+	var origin := player.global_position + Vector2(projectile_origin.x * player.facing, projectile_origin.y + y_offset)
 	player.get_parent().add_child(bolt)
 	bolt.global_position = origin
 	Fx.burst(origin, Color(DONUT_COLOR, 0.7), radius * 1.6, 0.12)
 	if heavy:
 		Fx.shake(0.12)
 	return bolt
+
+
+## Seismic Stomp: a shockwave runs along the floor from Carl's feet.
+func launch_kick_wave(damage: float) -> void:
+	var wave := KickWave.new()
+	wave.direction = player.facing
+	wave.hit = Hit.new(damage, Vector2(260 * player.facing, -200) * knockback_multiplier, player,
+		PackedStringArray(["kick", "wave"]))
+	wave.mask = target_mask
+	player.get_parent().add_child(wave)
+	wave.global_position = player.global_position + Vector2(24 * player.facing, 28)
 
 
 func _on_projectile_hit(bolt: MagicProjectile, _target: Node) -> void:

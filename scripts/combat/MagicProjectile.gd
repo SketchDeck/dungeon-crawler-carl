@@ -21,12 +21,15 @@ var color := Color("#c77dff")
 var mask := HitQuery.LAYER_ENEMIES | HitQuery.LAYER_HITTABLE | HitQuery.LAYER_WORLD
 ## Bolts curve up or down toward flying enemies ahead of them (Cave Bats), at
 ## up to this many pixels per second.
+## Laser-Guided Tiara: fly through enemies, hitting each once.
+var pierce := false
 var seek_speed := 300.0
 var seek_range := Vector2(320, 200)
 
 var travelled := 0.0
 var _t := 0.0
 var _trail: Array[Vector2] = []
+var _already_hit := {}
 
 
 func _ready() -> void:
@@ -49,6 +52,8 @@ func _physics_process(delta: float) -> void:
 	var target: Node = null
 	for body in HitQuery.circle(self, global_position, hit_radius, mask):
 		if body.has_method("take_hit"):
+			if _already_hit.has(body.get_instance_id()):
+				continue
 			if target == null or _ahead(body, target):
 				target = body
 		elif body is SolidBlock and (body as SolidBlock).one_way:
@@ -58,7 +63,12 @@ func _physics_process(delta: float) -> void:
 	if target:
 		target.take_hit(hit)
 		hit_target.emit(self, target)
-		_pop(1.0)
+		if pierce and target is EnemyBase:
+			_already_hit[target.get_instance_id()] = true
+			Fx.burst(global_position, color, radius * 1.8, 0.15)
+			queue_redraw()
+		else:
+			_pop(1.0)
 	elif blocked:
 		_pop(0.6)
 	elif travelled >= max_range:

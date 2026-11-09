@@ -111,3 +111,5 @@ func _strike() -> void:
 	var hit := Hit.new(damage_for(current), knockbacks[current] * combat.knockback_multiplier, player, tags)
 	Audio.play("kick_heavy" if _is_finisher() else "kick", -2.0)
 	combat.strike(hitbox, hit, _is_finisher(), Color("#ffb347"))
+	if _is_finisher() and combat.kick_wave_damage > 0.0:
+		combat.launch_kick_wave(combat.kick_wave_damage * combat.kick_damage_multiplier)

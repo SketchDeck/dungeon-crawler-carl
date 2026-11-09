@@ -78,3 +78,7 @@ func _fire() -> void:
 	var hit := Hit.new(damage_value(), knockback * combat.knockback_multiplier, player, PackedStringArray(["magic"]))
 	Audio.play("magic_missile", -5.0)
 	combat.fire_projectile(hit, radius, speed, max_range, false)
+	if combat.twin_bolt_factor > 0.0:
+		var twin := Hit.new(damage_value() * combat.twin_bolt_factor, knockback * combat.knockback_multiplier * 0.5, player,
+			PackedStringArray(["magic"]))
+		combat.fire_projectile(twin, radius * 0.75, speed * 1.1, max_range, false, -14.0)

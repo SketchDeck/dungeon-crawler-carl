@@ -175,6 +175,18 @@ func _run() -> void:
 	await _test("power-kicked enemies take double magic damage (juggle)", test_juggle)
 	await _test("new enemies spawn from room letters", test_new_enemy_letters)
 	await _test("sign text shows the current keys", test_sign_prompts)
+	# Milestone 10: behaviour upgrades.
+	await _test("rolls are weighted by rarity and skip owned behaviour upgrades", test_upgrade_rarity_roll)
+	await _test("piercing bolts hit every enemy in a line", test_upgrade_piercing)
+	await _test("double tap fires a second, weaker bolt", test_upgrade_twin_bolts)
+	await _test("seismic stomp: the finisher sends a shockwave", test_upgrade_kick_wave)
+	await _test("hot feet: dodging leaves fire that burns enemies", test_upgrade_fire_dodge)
+	await _test("explosive digestion: potions blast enemies", test_upgrade_potion_burst)
+	await _test("tag-in fury: switching boosts damage briefly", test_upgrade_frenzy)
+	await _test("tag team: switching readies the new mode", test_upgrade_tag_team)
+	await _test("lifesteal and volatile corpses trigger on kills", test_upgrade_kill_effects)
+	await _test("juggle master raises the juggle multiplier", test_upgrade_juggle_master)
+	await _test("upgrade cards show rarity", test_upgrade_cards_rarity)
 	GameManager.floor_number = 1
 	SaveManager.delete_save()
 	print("\n%d passed, %d failed" % [_passed, _failed])
@@ -1922,7 +1934,7 @@ func test_upgrade_roll() -> void:
 		var choice := p.upgrades.roll(3)
 		check_eq(choice.size(), 3, "three choices")
 		check(choice[0] != choice[1] and choice[1] != choice[2] and choice[0] != choice[2], "all different")
-	check_eq(p.upgrades.roll(10).size(), 6, "never more than the six upgrades")
+	check_eq(p.upgrades.roll(100).size(), PlayerUpgrades.POOL.size(), "never more than the whole pool")
 	for u in PlayerUpgrades.POOL:
 		check(u.title != "" and u.description() != "", "%s has a name and description" % u.title)
 
@@ -3108,3 +3120,175 @@ func test_sign_prompts() -> void:
 	check(pad != keyboard.split(",")[0], "differs from the keyboard prompt")
 	Settings.using_controller = false
 	check_eq(Settings.format_prompts("{not_an_action} stays"), "{not_an_action} stays", "unknown tokens are left alone")
+
+
+# --- Milestone 10: behaviour upgrades ------------------------------------------
+
+func upgrade_of(kind: Upgrade.Kind) -> Upgrade:
+	for u in PlayerUpgrades.POOL:
+		if u.kind == kind:
+			return u
+	return null
+
+
+func test_upgrade_rarity_roll() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(2)
+	var counts := [0, 0, 0]
+	for i in 400:
+		for u in p.upgrades.roll(1):
+			counts[u.rarity] += 1
+	check(counts[0] > counts[1] and counts[1] > counts[2] and counts[2] > 0, "commons > rares > epics > 0 (%s)" % [counts])
+	for u in PlayerUpgrades.POOL:
+		check(u.title != "" and u.description() != "", "%s has a name and description" % u.title)
+		check_eq(u.is_stackable(), u.rarity == Upgrade.Rarity.COMMON, "%s: only commons stack" % u.title)
+	var pierce := upgrade_of(Upgrade.Kind.PIERCING_BOLTS)
+	p.upgrades.apply(pierce)
+	for i in 50:
+		check(not p.upgrades.roll(3).has(pierce), "owned behaviour upgrade isn't offered again")
+	var kick := upgrade_of(Upgrade.Kind.KICK_DAMAGE)
+	p.upgrades.apply(kick)
+	check_eq(p.upgrades.roll(100).has(kick), true, "commons can be offered again")
+	for u in p.upgrades.roll(3, Upgrade.Rarity.RARE):
+		check(u.rarity >= Upgrade.Rarity.RARE, "min rarity roll")
+
+
+func test_upgrade_piercing() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g1 := spawn_goblin(w, 80.0)
+	var g2 := spawn_goblin(w, 160.0)
+	await frames(3)
+	p.upgrades.apply(upgrade_of(Upgrade.Kind.PIERCING_BOLTS))
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(secs(0.6))
+	check_eq(g1.health, 38.0, "first goblin hit")
+	check_eq(g2.health, 38.0, "second goblin hit by the same bolt")
+
+
+func test_upgrade_twin_bolts() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(3)
+	p.upgrades.apply(upgrade_of(Upgrade.Kind.TWIN_BOLTS))
+	p.combat.request_switch()
+	p.combat.magic_missile.press()
+	await frames(6)
+	check_eq(bolts(), 2, "two bolts in the air")
+
+
+func test_upgrade_kick_wave() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var far := spawn_goblin(w, 200.0)
+	await frames(3)
+	p.upgrades.apply(upgrade_of(Upgrade.Kind.KICK_WAVE))
+	for i in 3:
+		p.combat.kick_combo.press()
+		await frames(20)
+	await frames(secs(0.5))
+	check_eq(far.health, 50.0 - 14.0, "shockwave reached the far goblin")
+
+
+func test_upgrade_fire_dodge() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 60.0)
+	await frames(3)
+	p.upgrades.apply(upgrade_of(Upgrade.Kind.FIRE_DODGE))
+	p.try_dodge(1.0)
+	await frames(secs(1.0))
+	check(g.health < 50.0, "fire burned the goblin (hp %.0f)" % g.health)
+	await frames(secs(1.5))
+	var trails := 0
+	for c in w.get_children():
+		if c is FireTrail:
+			trails += 1
+	check_eq(trails, 0, "the fire dies down")
+
+
+func test_upgrade_potion_burst() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 70.0)
+	await frames(3)
+	p.upgrades.apply(upgrade_of(Upgrade.Kind.POTION_BURST))
+	set_health(p, 50.0)
+	check(p.potions.use(), "drank")
+	await frames(2)
+	check_eq(g.health, 30.0, "burst hit the goblin for 20")
+
+
+func test_upgrade_frenzy() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(3)
+	p.upgrades.apply(upgrade_of(Upgrade.Kind.SWITCH_FRENZY))
+	check_eq(p.combat.magic_damage_multiplier, 1.0, "no bonus before switching")
+	p.combat.request_switch()
+	check_eq(p.combat.magic_damage_multiplier, 1.5, "+50% after a switch")
+	check_eq(p.combat.kick_damage_multiplier, 1.5, "kicks too")
+	await frames(secs(1.6))
+	check_eq(p.combat.magic_damage_multiplier, 1.0, "bonus wears off")
+
+
+func test_upgrade_tag_team() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	await frames(3)
+	p.upgrades.apply(upgrade_of(Upgrade.Kind.TAG_TEAM))
+	p.combat.charged_blast.cooldown_remaining = 2.0
+	p.combat.magic_missile.cooldown_remaining = 2.0
+	p.combat.request_switch()
+	check_eq(p.combat.charged_blast.cooldown_remaining, 0.0, "blast ready")
+	check_eq(p.combat.magic_missile.cooldown_remaining, 0.0, "missile ready")
+
+
+func test_upgrade_kill_effects() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 60.0)
+	var near := spawn_goblin(w, 100.0)
+	await frames(3)
+	p.upgrades.apply(upgrade_of(Upgrade.Kind.LIFESTEAL))
+	p.upgrades.apply(upgrade_of(Upgrade.Kind.VOLATILE))
+	set_health(p, 50.0)
+	g.take_hit(Hit.new(999.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	await frames(3)
+	check_eq(p.health.current, 54.0, "lifesteal healed 4")
+	check_eq(near.health, 35.0, "the corpse exploded for 15")
+	var bystander := spawn_goblin(w, 400.0)
+	near.take_hit(Hit.new(999.0))  # not the player's kill
+	await frames(3)
+	check_eq(p.health.current, 54.0, "no lifesteal for other kills")
+	check_eq(bystander.health, 50.0, "no explosion for other kills")
+
+
+func test_upgrade_juggle_master() -> void:
+	var w := world()
+	var p := spawn_player(w, 0.0)
+	var g := spawn_goblin(w, 40.0)
+	await frames(3)
+	p.upgrades.apply(upgrade_of(Upgrade.Kind.JUGGLE_MASTER))
+	g.take_hit(Hit.new(1.0, Vector2(200, -300), p, PackedStringArray(["kick", "heavy"])))
+	await frames(4)
+	var before := g.health
+	g.take_hit(Hit.new(10.0, Vector2.ZERO, p, PackedStringArray(["magic"])))
+	check_eq(before - g.health, 30.0, "x3 juggle")
+	p.upgrades.clear()
+	check_eq(p.combat.juggle_multiplier, 2.0, "back to x2 after clearing")
+
+
+func test_upgrade_cards_rarity() -> void:
+	var m := spawn_main()
+	await frames(2)
+	var screen: UpgradeSelectionScreen = m.get("upgrade_selection")
+	screen.show_choices([upgrade_of(Upgrade.Kind.KICK_DAMAGE), upgrade_of(Upgrade.Kind.PIERCING_BOLTS), upgrade_of(Upgrade.Kind.VOLATILE)])
+	var texts: Array[String] = []
+	for card in screen.cards():
+		for label in card.find_children("", "Label", true, false):
+			texts.append((label as Label).text)
+	check(texts.has("COMMON") and texts.has("RARE") and texts.has("EPIC"), "rarity labels (%s)" % [texts])
+	screen.choose(screen.choices[0])

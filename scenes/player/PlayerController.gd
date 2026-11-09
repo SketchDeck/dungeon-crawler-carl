@@ -4,6 +4,8 @@ extends CharacterBody2D
 ## Movement only; attacks live in PlayerCombat and health in PlayerHealth.
 
 signal respawned
+## A dodge started, toward `dir` (-1 or 1).
+signal dodged(dir: int)
 
 @export_group("Run")
 @export var move_speed := 260.0
@@ -134,6 +136,7 @@ func try_dodge(dir := 0.0) -> bool:
 	_hurt_t = 0.0
 	combat.interrupt()
 	Audio.play("dodge", -4.0)
+	dodged.emit(_dodge_dir)
 	return true
 
 
