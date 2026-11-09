@@ -54,6 +54,13 @@ var _boss_hide_t := 0.0
 
 var _banner_tween: Tween
 
+## Viewers (the run's score) and waiting loot boxes, top right.
+var viewers_label: Label
+var _viewers_gain: Label
+var _viewers_pulse := 0.0
+var _boxes := 0
+var _viewers := 0
+
 
 func _ready() -> void:
 	_banner.modulate.a = 0.0
@@ -139,6 +146,68 @@ func _on_mode_changed(mode: PlayerCombat.Mode) -> void:
 	_mode_label.text = "MODE: %s · %s   [%s] switch" % [PlayerCombat.mode_name(mode), what, Settings.prompt_label("switch_mode")]
 	_mode_label.add_theme_color_override("font_color", PlayerCombat.mode_color(mode).lightened(0.15))
 	_mode_pulse = 0.25
+
+
+func bind_run(stats: RunStats) -> void:
+	viewers_label = Label.new()
+	viewers_label.name = "ViewersLabel"
+	viewers_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	viewers_label.offset_left = -456.0
+	viewers_label.offset_right = -16.0
+	viewers_label.offset_top = 38.0
+	viewers_label.offset_bottom = 60.0
+	viewers_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	viewers_label.add_theme_font_size_override("font_size", 15)
+	viewers_label.add_theme_color_override("font_color", Color("#ff8af0"))
+	viewers_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	viewers_label.add_theme_constant_override("outline_size", 4)
+	add_child(viewers_label)
+	_viewers_gain = Label.new()
+	_viewers_gain.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_viewers_gain.offset_left = -456.0
+	_viewers_gain.offset_right = -16.0
+	_viewers_gain.offset_top = 58.0
+	_viewers_gain.offset_bottom = 78.0
+	_viewers_gain.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_viewers_gain.add_theme_font_size_override("font_size", 13)
+	_viewers_gain.add_theme_color_override("font_color", Color("#7dff8a"))
+	_viewers_gain.add_theme_color_override("font_outline_color", Color.BLACK)
+	_viewers_gain.add_theme_constant_override("outline_size", 3)
+	_viewers_gain.modulate.a = 0.0
+	add_child(_viewers_gain)
+	stats.viewers_changed.connect(_on_viewers_changed)
+	stats.boxes_changed.connect(_on_boxes_changed)
+	_on_viewers_changed(stats.viewers, 0)
+
+
+func _on_viewers_changed(viewers: int, gained: int) -> void:
+	_viewers = viewers
+	if gained > 0:
+		_viewers_pulse = 0.3
+		_viewers_gain.text = "+%d" % gained
+		_viewers_gain.modulate.a = 1.0
+	_update_viewers_label()
+
+
+func _on_boxes_changed(count: int) -> void:
+	_boxes = count
+	_update_viewers_label()
+
+
+func _update_viewers_label() -> void:
+	var text := "VIEWERS %s" % _group_digits(_viewers)
+	if _boxes > 0:
+		text += "   ·   LOOT BOXES %d" % _boxes
+	viewers_label.text = text
+
+
+static func _group_digits(n: int) -> String:
+	var s := str(absi(n))
+	var out := ""
+	while s.length() > 3:
+		out = "," + s.substr(s.length() - 3) + out
+		s = s.substr(0, s.length() - 3)
+	return ("-" if n < 0 else "") + s + out
 
 
 func bind_rooms(manager: RoomManager) -> void:
@@ -293,6 +362,12 @@ func _process(delta: float) -> void:
 	_potion_row.scale = Vector2(pulse, pulse)
 
 	_update_boss_bar(delta)
+	if viewers_label:
+		_viewers_pulse = maxf(_viewers_pulse - delta, 0.0)
+		var vs := 1.0 + _viewers_pulse * 0.5
+		viewers_label.pivot_offset = Vector2(viewers_label.size.x, viewers_label.size.y * 0.5)
+		viewers_label.scale = Vector2(vs, vs)
+		_viewers_gain.modulate.a = maxf(_viewers_gain.modulate.a - delta * 0.8, 0.0)
 	_mode_pulse = maxf(_mode_pulse - delta, 0.0)
 	var mode_scale := 1.0 + _mode_pulse * 0.6
 	_mode_label.pivot_offset = Vector2(0, _mode_label.size.y * 0.5)

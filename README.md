@@ -142,22 +142,50 @@ Environmental combat:
   itself, once per pair per knockback.
 - None of this is required to clear a room.
 
-Dungeon AI achievements:
+Dungeon AI achievements, loot boxes and viewers (Milestone 11):
 
 - The Dungeon AI announces showy plays in a panel at the top right. It never
   pauses the game, and several announcements queue up.
-- **Kick an enemy into another enemy:** +50% knockback for this room and the
-  next three.
-- **Kill an enemy with spikes or a barrel:** +25% damage (kicks and magic)
-  for this room and the next three.
-- **Clear a combat room without taking any damage (Untouchable):** +25 HP
-  straight away.
-- Each achievement triggers at most once per room encounter. Restarting a
-  room after dying starts a new encounter. Earning a boost again refreshes it
-  to three rooms rather than stacking.
-- Active boosts and their rooms left show under the HUD's upgrades line.
-  Boosts survive losing a life (a restarted room doesn't count as a new room)
-  and end when the floor restarts or is completed.
+- There are 22 achievements (see `scripts/Achievements.gd`): Bowling Night
+  (kick an enemy into another), environmental kills, Untouchable, Juggler,
+  First Blood, Triple Kill, Chain Reaction, Overkill, What Shield?, Bat
+  Swatter, Shell Shocked, Dynamic Duo, Close Call, Hoarder, Pit Diver,
+  Renovations (break a cracked wall), Spicy, Stone Cold Sober (a floor with
+  no potions), Deathless, Boss Rush (a boss in under 60s), Nosy Neighbour
+  (find a secret room) and Valued Customer (buy from a shop).
+- Most trigger at most once per room encounter. Restarting a room after
+  dying starts a new encounter. A few (First Blood, Hoarder, Pit Diver,
+  Sober, Deathless, Nosy Neighbour, Valued Customer) trigger once per floor run.
+- Every achievement pays a **loot box** (Bronze, Silver or Gold) and
+  **viewers**. Some also give an instant reward:
+  - Kicking an enemy into another enemy: +50% knockback for this room and
+    the next three.
+  - Environmental kill or Juggler: +25% damage for this room and the next
+    three.
+  - Untouchable: +25 HP straight away.
+- Earning a boost again refreshes it to three rooms rather than stacking.
+  Active boosts show under the HUD's upgrades line. They survive losing a
+  life and end when the floor restarts or is completed.
+- **Loot boxes** wait until you reach a safe-room fountain: "[E] Open N loot
+  boxes" pauses the game and opens them one at a time. Opening boxes doesn't
+  use up the fountain's heal.
+  - Bronze: a potion, or a sponsor shout-out (viewers).
+  - Silver: a random stat upgrade plus a potion.
+  - Gold: a choice of rare or epic upgrades, plus a cosmetic **hat** for
+    Carl. Hats are permanent; change them under Extras.
+  - Unopened boxes carry over to the next floor. Restarting a floor loses
+    them.
+- **Viewers** are the run's score (top right of the HUD): 10 per kill, 15
+  more for stylish kills (juggles, hazards, collisions, explosions, fire), 25
+  per cleared room, 300 per boss, plus 50/120/250 per bronze/silver/gold
+  achievement.
+- The **Floor Complete** screen shows your grade (S, A, B, C or D: viewers
+  against the floor's target, minus a step per death), viewers, time,
+  kills, damage taken, deaths and potions drunk. The best run on each floor
+  is saved.
+- **Extras** on the main menu shows the trophy case (achievements you
+  haven't earned show as ???), Carl's hats and your best runs. Achievements,
+  hats and best runs survive New Game.
 
 Rooms and lives:
 

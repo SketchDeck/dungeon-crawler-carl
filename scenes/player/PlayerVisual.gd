@@ -141,6 +141,7 @@ func _draw() -> void:
 	draw_arc(head, 9.0, PI, TAU, 12, HAIR, 4.0)
 	draw_circle(head + Vector2(4, -1), 1.4, Color.BLACK)
 	draw_rect(Rect2(head + Vector2(-2, 5), Vector2(10, 4)), HAIR.lightened(0.15))
+	draw_hat(self, GameManager.equipped_hat, head + Vector2(0, -7))
 
 	# Donut leans forward and points a paw while casting.
 	var casting := missile.is_active() or blast.phase == ChargedBlast.Phase.CAST or blast.phase == ChargedBlast.Phase.RECOVERY \
@@ -255,3 +256,40 @@ func _draw_donut(at: Vector2) -> void:
 	draw_colored_polygon(tiara, TIARA)
 	draw_polyline(tiara, TIARA.lightened(0.35), 1.0)
 	draw_circle(head + Vector2(0, -7), 1.3, TIARA_GEM)
+
+
+## Carl's cosmetic hat (GameManager.HATS), drawn on `canvas` with its brim at
+## `at`. Static so menus can preview hats too.
+static func draw_hat(canvas: CanvasItem, id: String, at: Vector2, k := 1.0) -> void:
+	match id:
+		"party_hat":
+			canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(-7, 0) * k, at + Vector2(0, -18) * k, at + Vector2(7, 0) * k]), Color("#ff5a8a"))
+			canvas.draw_line(at + Vector2(-4, -6) * k, at + Vector2(4, -4) * k, Color("#ffd34d"), 2.0 * k)
+			canvas.draw_line(at + Vector2(-2, -12) * k, at + Vector2(2, -11) * k, Color("#7ad8ff"), 2.0 * k)
+			canvas.draw_circle(at + Vector2(0, -18) * k, 2.5 * k, Color("#ffd34d"))
+		"crown":
+			var pts := PackedVector2Array([at + Vector2(-7, 0) * k, at + Vector2(-7, -8) * k, at + Vector2(-3.5, -4) * k,
+				at + Vector2(0, -10) * k, at + Vector2(3.5, -4) * k, at + Vector2(7, -8) * k, at + Vector2(7, 0) * k])
+			canvas.draw_colored_polygon(pts, Color("#ffd34d"))
+			canvas.draw_circle(at + Vector2(0, -3) * k, 1.6 * k, Color("#e0304a"))
+		"traffic_cone":
+			canvas.draw_rect(Rect2(at + Vector2(-9, -2) * k, Vector2(18, 3) * k), Color("#ff7a1a"))
+			canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(-6, -2) * k, at + Vector2(0, -20) * k, at + Vector2(6, -2) * k]), Color("#ff7a1a"))
+			canvas.draw_line(at + Vector2(-4, -8) * k, at + Vector2(4, -8) * k, Color.WHITE, 2.5 * k)
+		"viking":
+			canvas.draw_circle(at + Vector2(0, 1) * k, 8.0 * k, Color("#9aa4b2"))
+			canvas.draw_rect(Rect2(at + Vector2(-9, 0) * k, Vector2(18, 3) * k), Color("#6c5a40"))
+			for side in [-1.0, 1.0]:
+				canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(side * 6, -3) * k, at + Vector2(side * 13, -13) * k,
+					at + Vector2(side * 9, -2) * k]), Color("#f4ead8"))
+		"propeller":
+			canvas.draw_circle(at + Vector2(0, 1) * k, 7.5 * k, Color("#3a6ad8"))
+			canvas.draw_rect(Rect2(at + Vector2(-8, 0) * k, Vector2(16, 2.5) * k), Color("#ffd34d"))
+			canvas.draw_line(at + Vector2(0, -6) * k, at + Vector2(0, -10) * k, Color("#444"), 1.5 * k)
+			var spin := Time.get_ticks_msec() * 0.02
+			var blade := Vector2(cos(spin) * 8.0, 0) * k
+			canvas.draw_line(at + Vector2(0, -10) * k - blade, at + Vector2(0, -10) * k + blade, Color("#e0304a"), 2.5 * k)
+		"chef":
+			canvas.draw_rect(Rect2(at + Vector2(-6, -6) * k, Vector2(12, 7) * k), Color.WHITE)
+			for x in [-5.0, 0.0, 5.0]:
+				canvas.draw_circle(at + Vector2(x, -10) * k, 5.0 * k, Color.WHITE)

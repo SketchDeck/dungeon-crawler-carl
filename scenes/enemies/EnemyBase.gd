@@ -145,6 +145,7 @@ func take_hit(hit: Hit) -> void:
 	_flash_t = 0.1
 	Audio.play("hit", -3.0)
 	damaged.emit(self, amount)
+	GameManager.enemy_damaged.emit(self, amount, hit)
 	Fx.text(global_position + Vector2(0, -body_size.y * 0.5 - 12), str(roundi(amount)),
 		Color("#ffd34d") if hit.has_tag("heavy") else Color.WHITE, 18 if hit.has_tag("heavy") else 15)
 	Fx.burst(global_position, Color("#ffe6a0"), 18.0, 0.18)

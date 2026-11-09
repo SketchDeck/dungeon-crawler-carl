@@ -66,6 +66,8 @@ func break_apart() -> void:
 		potion.launch(Vector2(0, -220))
 		get_parent().add_child.call_deferred(potion)
 	broken.emit(self)
+	if kind == Kind.WALL:
+		GameManager.wall_broken.emit()
 	queue_free()
 
 

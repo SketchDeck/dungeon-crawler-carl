@@ -14,6 +14,7 @@ var requested_scene := ""
 var continue_button: Button
 var new_game_button: Button
 var settings_button: Button
+var extras_button: Button
 var quit_button: Button
 var floor_buttons: Array[Button] = []
 
@@ -21,6 +22,7 @@ var _menu: VBoxContainer
 var _floor_row: HBoxContainer
 var _confirm: PanelContainer
 var _settings: SettingsMenu
+var _extras: ExtrasMenu
 var _t := 0.0
 
 
@@ -62,6 +64,7 @@ func _ready() -> void:
 	_floor_row.add_theme_constant_override("separation", 8)
 	_menu.add_child(_floor_row)
 	new_game_button = _button("New Game", _on_new_game)
+	extras_button = _button("Extras", _on_extras)
 	settings_button = _button("Settings", _on_settings)
 	quit_button = _button("Quit", func() -> void: get_tree().quit())
 	quit_button.visible = not OS.has_feature("web")
@@ -71,6 +74,11 @@ func _ready() -> void:
 	_settings = SettingsMenu.new()
 	_settings.closed.connect(_on_settings_closed)
 	center.add_child(_settings)
+	_extras = ExtrasMenu.new()
+	_extras.closed.connect(func() -> void:
+		_menu.show()
+		extras_button.grab_focus())
+	center.add_child(_extras)
 	refresh()
 
 
@@ -96,7 +104,7 @@ func _make_confirm() -> PanelContainer:
 	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
 	var label := Label.new()
-	label.text = "Start a new game?\nThis erases your completed floors and unlocked abilities.\nYour settings are kept."
+	label.text = "Start a new game?\nThis erases your completed floors and unlocked abilities.\nYour settings, achievements and hats are kept."
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(label)
 	var row := HBoxContainer.new()
@@ -170,6 +178,15 @@ func start_floor(floor_number: int) -> void:
 	GameManager.floor_number = floor_number
 	GameManager.reset_lives()
 	_go(GAME_SCENE)
+
+
+func _on_extras() -> void:
+	_menu.hide()
+	_extras.open()
+
+
+func is_extras_open() -> bool:
+	return _extras.visible
 
 
 func _on_settings() -> void:

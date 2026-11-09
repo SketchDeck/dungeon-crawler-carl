@@ -1,7 +1,8 @@
 extends Node
 ## Autoload: run-wide state that outlives individual rooms (lives, current
 ## floor) plus permanent progress (completed floors, unlocked floor, ability
-## unlocks), which is saved through SaveManager.
+## unlocks), which is saved through SaveManager. The "profile" (achievements
+## ever earned, hats, best runs) is saved separately and survives New Game.
 
 signal lives_changed(lives: int)
 signal floor_completed(floor_number: int)
@@ -15,6 +16,11 @@ signal enemy_juggled(enemy: EnemyBase)
 signal enemy_resisted(enemy: EnemyBase, hit: Hit)
 ## An Armored Slime's shell was cracked.
 signal shell_cracked(enemy: EnemyBase)
+## Any enemy took damage from a hit.
+signal enemy_damaged(enemy: EnemyBase, amount: float, hit: Hit)
+## A cracked wall was broken open.
+signal wall_broken
+signal profile_changed
 
 const MAX_LIVES := 3
 const EXPLOSIVE_KICK := &"explosive_kick"
@@ -35,9 +41,22 @@ var unlocked_abilities: Array[StringName] = []
 ## A game has been started (New Game), so the main menu offers Continue.
 var game_started := false
 
+## Cosmetic hats for Carl, won from gold loot boxes: id -> display name.
+const HATS := {
+	"party_hat": "Party Hat", "crown": "Tiny Crown", "traffic_cone": "Traffic Cone",
+	"viking": "Viking Helmet", "propeller": "Propeller Cap", "chef": "Chef's Toque",
+}
+## Profile: achievement id (String) -> times earned.
+var achievements := {}
+var owned_hats: Array[String] = []
+var equipped_hat := ""
+## Floor number (String) -> {"viewers", "time", "grade"} of the best run.
+var best_runs := {}
+
 
 func _ready() -> void:
 	load_progress()
+	load_profile()
 
 
 ## Removes exactly one life. Returns the lives remaining.
@@ -142,6 +161,103 @@ func load_progress() -> void:
 		for a: Variant in abilities:
 			if a is String and FLOOR_UNLOCKS.values().has(StringName(a)) and not unlocked_abilities.has(StringName(a)):
 				unlocked_abilities.append(StringName(a))
+
+
+# --- Profile -------------------------------------------------------------------
+
+func record_achievement(id: StringName) -> bool:
+	var key := String(id)
+	var first := not achievements.has(key)
+	achievements[key] = int(achievements.get(key, 0)) + 1
+	save_profile()
+	return first
+
+
+func has_achievement(id: StringName) -> bool:
+	return achievements.has(String(id))
+
+
+## Unlocks a random hat you don't own yet and wears it. Returns its id, or ""
+## if you have them all.
+func unlock_random_hat(rng: RandomNumberGenerator) -> String:
+	var missing: Array[String] = []
+	for id: String in HATS:
+		if not owned_hats.has(id):
+			missing.append(id)
+	if missing.is_empty():
+		return ""
+	var id := missing[rng.randi_range(0, missing.size() - 1)]
+	owned_hats.append(id)
+	equipped_hat = id
+	save_profile()
+	return id
+
+
+func equip_hat(id: String) -> void:
+	if id != "" and not owned_hats.has(id):
+		return
+	equipped_hat = id
+	save_profile()
+
+
+## Saves a floor run if it beats the best viewer count. Returns true if it did.
+func record_run(summary: Dictionary) -> bool:
+	var key := str(summary.get("floor", 1))
+	var best: Dictionary = best_runs.get(key, {})
+	if not best.is_empty() and int(best.get("viewers", 0)) >= int(summary.get("viewers", 0)):
+		return false
+	best_runs[key] = {"viewers": int(summary.get("viewers", 0)), "time": float(summary.get("time", 0.0)),
+		"grade": String(summary.get("grade", "D"))}
+	save_profile()
+	return true
+
+
+func best_run(floor_number: int) -> Dictionary:
+	return best_runs.get(str(floor_number), {})
+
+
+## Forgets achievements, hats and best runs (tests).
+func reset_profile() -> void:
+	achievements.clear()
+	owned_hats.clear()
+	equipped_hat = ""
+	best_runs.clear()
+
+
+func save_profile() -> void:
+	SaveManager.update({"profile": {
+		"achievements": achievements.duplicate(),
+		"hats": owned_hats.duplicate(),
+		"equipped_hat": equipped_hat,
+		"best_runs": best_runs.duplicate(true),
+	}})
+	profile_changed.emit()
+
+
+func load_profile() -> void:
+	reset_profile()
+	var data: Variant = SaveManager.load_data().get("profile", {})
+	if not data is Dictionary:
+		return
+	var ach: Variant = data.get("achievements", {})
+	if ach is Dictionary:
+		for k: Variant in ach:
+			if k is String and Achievements.has(StringName(k)) and (ach[k] is float or ach[k] is int):
+				achievements[k] = int(ach[k])
+	var hats: Variant = data.get("hats", [])
+	if hats is Array:
+		for h: Variant in hats:
+			if h is String and HATS.has(h) and not owned_hats.has(h):
+				owned_hats.append(h)
+	var eq: Variant = data.get("equipped_hat", "")
+	equipped_hat = eq if eq is String and owned_hats.has(eq) else ""
+	var runs: Variant = data.get("best_runs", {})
+	if runs is Dictionary:
+		for k: Variant in runs:
+			var r: Variant = runs[k]
+			if k is String and r is Dictionary:
+				best_runs[k] = {"viewers": int(r.get("viewers", 0)), "time": float(r.get("time", 0.0)),
+					"grade": str(r.get("grade", "D"))}
 
 
 func is_floor_completed(number: int) -> bool:

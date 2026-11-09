@@ -13,6 +13,8 @@ signal floor_started(floor_number: int)
 signal floor_exit_reached(floor_number: int)
 ## A treasure chest was opened: time to pick an upgrade.
 signal treasure_opened(room: RoomBase)
+## The player fell out of the bottom of the room.
+signal player_fell
 
 @export var transition_fade := 0.18
 ## Damage for falling out of the bottom of a room; the player returns to the entrance.
@@ -143,6 +145,7 @@ func _physics_process(_delta: float) -> void:
 
 
 func _on_player_fell() -> void:
+	player_fell.emit()
 	player.health.take_damage(fall_damage, true)
 	if player.health.is_dead:
 		return

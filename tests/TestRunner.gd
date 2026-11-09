@@ -28,6 +28,7 @@ func _run() -> void:
 	SaveManager.save_path = "user://test_save.json"
 	SaveManager.delete_save()
 	GameManager.reset_progress()
+	GameManager.reset_profile()
 	# Default settings and key bindings, whatever the real save says.
 	Settings.load_settings()
 	await _test("health clamps, invulnerability and death", test_health)
@@ -187,6 +188,20 @@ func _run() -> void:
 	await _test("lifesteal and volatile corpses trigger on kills", test_upgrade_kill_effects)
 	await _test("juggle master raises the juggle multiplier", test_upgrade_juggle_master)
 	await _test("upgrade cards show rarity", test_upgrade_cards_rarity)
+	# Milestone 11: Dungeon AI loop.
+	await _test("every achievement is defined and pays a box and viewers", test_achievement_rewards)
+	await _test("per-floor achievements trigger once per floor", test_achievement_per_floor)
+	await _test("kill achievements: first blood, triple, chain, overkill, spicy", test_kill_achievements)
+	await _test("enemy achievements: shield, bat, shell, dynamic duo", test_enemy_achievements)
+	await _test("room achievements: close call, hoarder, pit diver, walls", test_room_achievements)
+	await _test("boss achievements: boss rush, sober, deathless", test_boss_achievements)
+	await _test("viewers: kills, style kills and cleared rooms", test_viewers)
+	await _test("grades follow viewers and deaths", test_grades)
+	await _test("fountain opens loot boxes; rewards by tier", test_loot_boxes)
+	await _test("loot boxes carry over to the next floor", test_loot_carry_over)
+	await _test("floor complete shows the run summary and saves the best", test_run_summary)
+	await _test("profile survives reloads and New Game", test_profile_persists)
+	await _test("extras menu shows the trophy case and hats", test_extras_menu)
 	GameManager.floor_number = 1
 	SaveManager.delete_save()
 	print("\n%d passed, %d failed" % [_passed, _failed])
@@ -2177,7 +2192,9 @@ func test_ai_environment_kill() -> void:
 	g.velocity = Vector2.ZERO
 	await until(func() -> bool: return ai.history.has(DungeonAIManager.ENVIRONMENT_KILL), secs(3.0))
 	check(ai.history.has(DungeonAIManager.ENVIRONMENT_KILL), "spike kill awarded")
-	check(String(hud.achievement_panel.current.get("description", "")).contains("spikes"), "mentions the spikes")
+	var shown: Array[Dictionary] = [hud.achievement_panel.current]
+	shown.append_array(hud.achievement_panel.queue)
+	check(shown.any(func(e: Dictionary) -> bool: return String(e.get("description", "")).contains("spikes")), "mentions the spikes")
 	check_eq(p.combat.kick_damage_multiplier, 1.25, "+25% kick damage")
 	check_eq(p.combat.magic_damage_multiplier, 1.25, "+25% magic damage")
 
@@ -2911,9 +2928,27 @@ func _clear_room(m: Node, exit_index: int) -> void:
 			screen.cards()[0].pressed.emit()
 	if room.room_type == RoomBase.RoomType.SAFE and room.fountain:
 		room.fountain.interact()
+		await _finish_loot(m)
 	check(rm.request_exit(exit_index), "%s: exit %d" % [room.room_id, exit_index + 1])
 	while rm.transitioning:
 		await get_tree().process_frame
+
+
+## Opens every loot box on the loot screen and takes the first upgrade offered.
+func _finish_loot(m: Node) -> void:
+	var loot: LootBoxScreen = m.get("loot_screen")
+	var picks: UpgradeSelectionScreen = m.get("upgrade_selection")
+	for i in 200:
+		if loot.is_open():
+			loot.advance()
+		elif picks.visible:
+			picks.cards()[0].pressed.emit()
+		else:
+			break
+		await get_tree().process_frame
+	await get_tree().process_frame
+	if picks.visible:
+		picks.cards()[0].pressed.emit()
 
 
 func _beat_boss(m: Node) -> void:
@@ -3292,3 +3327,288 @@ func test_upgrade_cards_rarity() -> void:
 			texts.append((label as Label).text)
 	check(texts.has("COMMON") and texts.has("RARE") and texts.has("EPIC"), "rarity labels (%s)" % [texts])
 	screen.choose(screen.choices[0])
+
+
+# --- Milestone 11: Dungeon AI loop -----------------------------------------------
+
+func stats_of(m: Node) -> RunStats:
+	return m.get("run_stats")
+
+
+func test_achievement_rewards() -> void:
+	check(Achievements.ids().size() >= 20, "at least 20 achievements (%d)" % Achievements.ids().size())
+	for id: StringName in Achievements.ids():
+		check(Achievements.display_name(id) != "" and Achievements.hint(id) != "", "%s has a name and hint" % id)
+	var m := spawn_main()
+	var ai := ai_of(m)
+	var stats := stats_of(m)
+	await frames(2)
+	var before := stats.viewers
+	check(ai.award(&"overkill", {"title": "T", "description": "D"}), "awarded")
+	check_eq(stats.boxes, [Achievements.Tier.BRONZE] as Array[int], "bronze box")
+	check_eq(stats.viewers - before, Achievements.TIER_VIEWERS[Achievements.Tier.BRONZE], "viewers for the tier")
+	check(GameManager.has_achievement(&"overkill"), "recorded in the profile")
+	check(not ai.award(&"overkill", {"title": "T", "description": "D"}), "once per encounter")
+	var hud: HUD = m.get("hud")
+	check(String(hud.achievement_panel.current.get("reward", "")).contains("Bronze loot box"), "announcement names the box")
+	check(hud.viewers_label.text.contains("LOOT BOXES 1"), "HUD shows waiting boxes (%s)" % hud.viewers_label.text)
+
+
+func test_achievement_per_floor() -> void:
+	var m := spawn_main()
+	var ai := ai_of(m)
+	var rm := rooms_of(m)
+	await frames(2)
+	check(ai.award(&"hoarder", {"title": "T", "description": "D"}), "first time")
+	rm.load_room("F1-02")
+	check(not ai.award(&"hoarder", {"title": "T", "description": "D"}), "not again in another room")
+	ai.reset()
+	check(ai.award(&"hoarder", {"title": "T", "description": "D"}), "again on a new floor run")
+
+
+func test_kill_achievements() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var ai := ai_of(m)
+	var room := rooms_of(m).current_room
+	await frames(2)
+	var gs: Array[Goblin] = []
+	for i in 6:
+		var g := spawn_goblin(room, 300.0 + i * 40.0)
+		gs.append(g)
+	await frames(2)
+	gs[0].take_hit(Hit.new(50.0, Vector2.ZERO, p, PackedStringArray(["kick", "heavy"])))
+	check(ai.history.has(&"overkill"), "overkill for 50 damage")
+	check(ai.history.has(&"first_blood"), "first blood")
+	check(not ai.history.has(&"triple_kill"), "no triple yet")
+	gs[1].take_hit(Hit.new(999.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	gs[2].take_hit(Hit.new(999.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	check(ai.history.has(&"triple_kill"), "three kills in a moment")
+	gs[3].take_hit(Hit.new(999.0, Vector2.ZERO, null, PackedStringArray(["explosion", "hazard"])))
+	gs[4].take_hit(Hit.new(999.0, Vector2.ZERO, null, PackedStringArray(["explosion", "hazard"])))
+	check(ai.history.has(&"chain_reaction"), "two explosion kills at once")
+	gs[5].take_hit(Hit.new(999.0, Vector2.ZERO, p, PackedStringArray(["fire"])))
+	check(ai.history.has(&"spicy"), "fire kill")
+
+
+func test_enemy_achievements() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var ai := ai_of(m)
+	var room := rooms_of(m).current_room
+	await frames(2)
+	var sg := spawn_scene(room, SHIELD_GOBLIN_SCENE, Vector2(400, p.global_position.y)) as ShieldGoblin
+	sg.facing = 1 if p.global_position.x > sg.global_position.x else -1
+	sg.facing = -sg.facing  # back to the player
+	sg.take_hit(Hit.new(10.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	check(ai.history.has(&"what_shield"), "kick from behind")
+	var bat := spawn_scene(room, BAT_SCENE, Vector2(500, p.global_position.y - 100)) as Bat
+	bat.take_hit(Hit.new(999.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	check(ai.history.has(&"bat_swatter"), "kicked a bat to death")
+	var sl := spawn_scene(room, ARMORED_SLIME_SCENE, Vector2(600, p.global_position.y)) as ArmoredSlime
+	sl.crack()
+	check(ai.history.has(&"shell_shocked"), "cracked a shell")
+	var g := spawn_goblin(room, 650.0)
+	g.take_hit(Hit.new(999.0, Vector2.ZERO, p, PackedStringArray(["magic"])))
+	check(ai.history.has(&"dynamic_duo"), "kick and magic kills in one room")
+
+
+func test_room_achievements() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var ai := ai_of(m)
+	var rm := rooms_of(m)
+	await frames(2)
+	var room := rm.load_room("F1-02")
+	set_health(p, 10.0)
+	kill_required(room)
+	await frames(2)
+	check(ai.history.has(&"close_call"), "cleared at 10% health")
+	p.potions.reset(9)
+	p.potions.add()
+	check(ai.history.has(&"hoarder"), "ten potions")
+	set_health(p, 100.0)
+	p.health._invuln = 99.0
+	for i in 3:
+		p.global_position.y = rm.current_room.bounds.end.y + 100.0
+		await frames(2)
+	check(ai.history.has(&"pit_diver"), "three falls")
+	GameManager.wall_broken.emit()
+	check(ai.history.has(&"wall_breaker"), "broke a wall")
+
+
+func test_boss_achievements() -> void:
+	var m := spawn_main()
+	var ai := ai_of(m)
+	var rm := rooms_of(m)
+	await frames(2)
+	rm.load_room("F1-08")
+	await _beat_boss(m)
+	check(ai.history.has(&"speed_boss"), "boss beaten quickly")
+	check(ai.history.has(&"sober"), "no potions drunk")
+	check(ai.history.has(&"deathless"), "no deaths")
+
+
+func test_viewers() -> void:
+	var m := spawn_main()
+	var p := player_of(m)
+	var stats := stats_of(m)
+	var rm := rooms_of(m)
+	await frames(2)
+	var room := rm.load_room("F1-05")
+	await frames(1)
+	ai_of(m).reset()
+	ai_of(m).award(&"first_blood", {"title": "", "description": ""})  # keep it out of the count
+	var start := stats.viewers
+	var gs := room.required_enemies.duplicate()
+	gs[0].take_hit(Hit.new(30.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	gs[0].take_hit(Hit.new(30.0, Vector2.ZERO, p, PackedStringArray(["kick"])))
+	check_eq(stats.viewers - start, RunStats.KILL_VIEWERS, "plain kill")
+	start = stats.viewers
+	gs[1].take_hit(Hit.new(999.0, Vector2.ZERO, null, PackedStringArray(["hazard", "spikes"])))
+	var style := RunStats.KILL_VIEWERS + RunStats.STYLE_VIEWERS
+	check(stats.viewers - start >= style, "style kill pays more (%d)" % (stats.viewers - start))
+	check_eq(stats.kills, 2, "kills counted")
+	start = stats.viewers
+	stats.viewer_multiplier = 2.0
+	stats.add_viewers(10)
+	check_eq(stats.viewers - start, 20, "modifiers multiply viewers")
+	stats.viewer_multiplier = 1.0
+	start = stats.viewers
+	for e in room.required_enemies.duplicate():
+		if not e.is_dead:
+			e.take_hit(Hit.new(999.0))
+	check(stats.viewers - start >= RunStats.ROOM_CLEAR_VIEWERS, "room clear pays out")
+
+
+func test_grades() -> void:
+	var stats := RunStats.new()
+	add_child(stats)
+	stats.reset(1)
+	stats.viewers = 1700
+	check_eq(stats.grade(), "S", "S for a big deathless run")
+	stats.deaths = 1
+	check_eq(stats.grade(), "A", "a death drops S")
+	stats.deaths = 0
+	stats.viewers = 900
+	check_eq(stats.grade(), "B", "B around par")
+	stats.viewers = 100
+	check_eq(stats.grade(), "D", "D for a quiet run")
+	check_eq(RunStats.format_time(125.0), "2:05", "time format")
+
+
+func test_loot_boxes() -> void:
+	GameManager.reset_profile()
+	var m := spawn_main()
+	var p := player_of(m)
+	var stats := stats_of(m)
+	var loot: LootBoxScreen = m.get("loot_screen")
+	var picks: UpgradeSelectionScreen = m.get("upgrade_selection")
+	var rm := rooms_of(m)
+	await frames(2)
+	var room := rm.load_room("F1-03")
+	await frames(1)
+	check_eq(room.fountain.prompt(), "Drink from fountain", "no boxes: the fountain heals")
+	stats.add_box(Achievements.Tier.SILVER)
+	stats.add_box(Achievements.Tier.GOLD)
+	check_eq(room.fountain.prompt(), "Open 2 loot boxes", "boxes waiting")
+	p.potions.reset(3)
+	check(room.fountain.interact(), "fountain opens the boxes")
+	check(loot.is_open() and get_tree().paused, "loot screen pauses")
+	check(not room.fountain.dry, "the fountain's heal is still there")
+	loot.advance()  # open silver
+	check_eq(p.upgrades.active.size(), 1, "silver gave a stat upgrade")
+	check_eq(p.potions.count, 4, "and a potion")
+	loot.advance()  # next
+	loot.advance()  # open gold
+	check_eq(GameManager.owned_hats.size(), 1, "gold gave a hat")
+	check(GameManager.equipped_hat != "", "and Carl wears it")
+	loot.advance()  # done
+	await frames(1)
+	check(not loot.is_open(), "loot screen closed")
+	check(picks.visible, "gold box offers an upgrade choice")
+	for c in picks.choices:
+		check(c.rarity >= Upgrade.Rarity.RARE, "rare or better (%s)" % c.title)
+	picks.cards()[0].pressed.emit()
+	await frames(1)
+	check(not get_tree().paused, "game resumes")
+	check_eq(stats.boxes.size(), 0, "boxes used up")
+	check_eq(room.fountain.prompt(), "Drink from fountain", "back to healing")
+	# Bronze: a potion or viewers.
+	var main_script: Variant = m
+	var text: String = main_script.open_loot_box(Achievements.Tier.BRONZE)
+	check(text != "", "bronze reward described")
+
+
+func test_loot_carry_over() -> void:
+	var m := spawn_main()
+	var stats := stats_of(m)
+	await frames(2)
+	stats.add_box(Achievements.Tier.BRONZE)
+	stats.add_viewers(500)
+	m.continue_to_next_floor()
+	await frames(2)
+	check_eq(stats.boxes.size(), 1, "box kept on the next floor")
+	check_eq(stats.viewers, 0, "viewers start again")
+	m.restart_floor()
+	check_eq(stats.boxes.size(), 0, "restarting a floor drops boxes")
+	GameManager.floor_number = 1
+
+
+func test_run_summary() -> void:
+	GameManager.reset_profile()
+	var m := spawn_main()
+	var stats := stats_of(m)
+	var rm := rooms_of(m)
+	var screen: FloorCompleteScreen = m.get("floor_complete")
+	await frames(2)
+	rm.load_room("F1-08")
+	await _beat_boss(m)
+	check(screen.visible, "floor complete")
+	var body: String = (screen.get_node("%Body") as Label).text
+	check(body.contains("GRADE") and body.contains("Viewers") and body.contains("NEW BEST"), "summary shown")
+	check_eq(int(GameManager.best_run(1).get("viewers", -1)), stats.viewers, "best run saved")
+	get_tree().paused = false
+
+
+func test_profile_persists() -> void:
+	GameManager.reset_profile()
+	GameManager.record_achievement(&"juggler")
+	var rng := RandomNumberGenerator.new()
+	var hat := GameManager.unlock_random_hat(rng)
+	GameManager.record_run({"floor": 2, "viewers": 1234, "time": 300.0, "grade": "A"})
+	check(not GameManager.record_run({"floor": 2, "viewers": 10, "time": 30.0, "grade": "D"}), "worse run isn't saved")
+	SaveManager.reload()
+	GameManager.load_profile()
+	check(GameManager.has_achievement(&"juggler"), "achievement reloaded")
+	check(GameManager.owned_hats.has(hat) and GameManager.equipped_hat == hat, "hat reloaded")
+	check_eq(int(GameManager.best_run(2)["viewers"]), 1234, "best run reloaded")
+	GameManager.new_game()
+	GameManager.load_profile()
+	check(GameManager.has_achievement(&"juggler"), "New Game keeps achievements")
+	GameManager.reset_progress()
+	GameManager.reset_profile()
+
+
+func test_extras_menu() -> void:
+	GameManager.reset_profile()
+	GameManager.record_achievement(&"juggler")
+	GameManager.unlock_random_hat(RandomNumberGenerator.new())
+	var menu := MENU_SCENE.instantiate() as MainMenu
+	menu.navigate = false
+	add_child(menu)
+	await frames(1)
+	menu.extras_button.pressed.emit()
+	await frames(1)
+	check(menu.is_extras_open(), "extras open")
+	var texts: Array[String] = []
+	for l in menu.find_children("", "Label", true, false):
+		texts.append((l as Label).text)
+	check(texts.has("Juggler"), "earned achievement named")
+	check(texts.has("???"), "locked ones hidden")
+	var hat_names := 0
+	for b in menu.find_children("", "Button", true, false):
+		if GameManager.HATS.values().has((b as Button).text):
+			hat_names += 1
+	check_eq(hat_names, 1, "one hat to wear")
+	GameManager.reset_profile()

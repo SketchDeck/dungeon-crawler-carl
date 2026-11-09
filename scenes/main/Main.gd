@@ -34,16 +34,34 @@ var requested_scene := ""
 
 ## Abilities unlocked since the floor started, shown on Floor Complete.
 var _new_unlocks: Array[StringName] = []
+## The floor run's record (viewers, kills, loot boxes...).
+var run_stats: RunStats
+var loot_screen: LootBoxScreen
+## Upgrade choices still owed from gold loot boxes.
+var _pending_picks := 0
+var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	# Playtest builds (make playtest) are for the team: no debug shortcuts.
 	if OS.has_feature("playtest"):
 		debug_keys = false
+	_rng.randomize()
+	run_stats = RunStats.new()
+	run_stats.name = "RunStats"
+	add_child(run_stats)
+	loot_screen = LootBoxScreen.new()
+	loot_screen.name = "LootBoxes"
+	loot_screen.opener = open_loot_box
+	add_child(loot_screen)
+	loot_screen.closed.connect(_on_loot_closed)
+	run_stats.loot_requested.connect(open_loot_boxes)
 	hud.bind_player(player)
 	hud.bind_rooms(room_manager)
+	hud.bind_run(run_stats)
 	room_manager.setup(player, room_slot, hud)
-	dungeon_ai.setup(player, room_manager, hud)
+	run_stats.bind(player, room_manager)
+	dungeon_ai.setup(player, room_manager, hud, run_stats)
 	player.health.died.connect(_on_player_died)
 	game_over.restart_requested.connect(restart_floor)
 	room_manager.floor_exit_reached.connect(_on_floor_exit_reached)
@@ -57,6 +75,7 @@ func _ready() -> void:
 	GameManager.ability_unlocked.connect(_on_ability_unlocked)
 	room_manager.room_entered.connect(_on_room_entered_music)
 	GameManager.reset_lives()
+	run_stats.reset(GameManager.floor_number)
 	room_manager.start_floor(GameManager.floor_number)
 
 
@@ -104,6 +123,7 @@ func restart_floor() -> void:
 	player.upgrades.clear()
 	dungeon_ai.reset()
 	_new_unlocks.clear()
+	run_stats.reset(GameManager.floor_number)
 	player.respawn(player.global_position)
 	room_manager.start_floor(GameManager.floor_number)
 
@@ -119,7 +139,10 @@ func go_to_main_menu() -> void:
 func _on_floor_exit_reached(floor_number: int) -> void:
 	Audio.play_music("menu")
 	Audio.play("achievement", 0.0, 0.0)
-	floor_complete.show_screen(floor_number, GameManager.lives, player.potions.count, _new_unlocks)
+	run_stats.timing = false
+	var summary := run_stats.summary()
+	summary["new_best"] = GameManager.record_run(summary)
+	floor_complete.show_screen(floor_number, GameManager.lives, player.potions.count, _new_unlocks, summary)
 
 
 func _on_ability_unlocked(id: StringName) -> void:
@@ -136,6 +159,61 @@ func _on_treasure_opened(_room: RoomBase) -> void:
 func _on_upgrade_chosen(upgrade: Upgrade) -> void:
 	player.upgrades.apply(upgrade)
 	Fx.text(player.global_position + Vector2(0, -70), upgrade.title.to_upper() + "!", Color("#ffd34d"), 18)
+	_offer_pending_pick.call_deferred()
+
+
+# --- Loot boxes -------------------------------------------------------------------
+
+func open_loot_boxes() -> void:
+	if loot_screen.is_open() or upgrade_selection.visible or not run_stats.has_boxes():
+		return
+	loot_screen.open_boxes(run_stats.take_boxes())
+
+
+## Applies one box's reward and describes it.
+##   Bronze: a potion (or viewers if you're full), sometimes a sponsor shout-out.
+##   Silver: a random stat upgrade and a potion.
+##   Gold: an upgrade choice (rare or better) and a hat for Carl.
+func open_loot_box(tier: int) -> String:
+	match tier:
+		Achievements.Tier.BRONZE:
+			if _rng.randf() < 0.3:
+				run_stats.add_viewers(60)
+				return "A sponsor shout-out! +60 viewers."
+			if player.potions.add():
+				return "A health potion!"
+			run_stats.add_viewers(40)
+			return "A health potion... which you sold to a viewer. +40 viewers."
+		Achievements.Tier.SILVER:
+			var commons: Array[Upgrade] = []
+			for u in PlayerUpgrades.POOL:
+				if u.rarity == Upgrade.Rarity.COMMON:
+					commons.append(u)
+			var pick := commons[_rng.randi_range(0, commons.size() - 1)]
+			player.upgrades.apply(pick)
+			var potion := player.potions.add()
+			return "%s: %s%s" % [pick.title, pick.description(), "\nPlus a health potion." if potion else ""]
+		_:
+			_pending_picks += 1
+			var hat := GameManager.unlock_random_hat(_rng)
+			var lines := ["Choose a rare upgrade when you're done."]
+			if hat != "":
+				lines.append("New hat for Carl: %s! (Change hats under Extras.)" % GameManager.HATS[hat])
+			else:
+				run_stats.add_viewers(150)
+				lines.append("You own every hat, so the viewers get a show instead. +150 viewers.")
+			return "\n".join(lines)
+
+
+func _on_loot_closed() -> void:
+	_offer_pending_pick()
+
+
+func _offer_pending_pick() -> void:
+	if _pending_picks <= 0 or upgrade_selection.visible or loot_screen.is_open():
+		return
+	_pending_picks -= 1
+	upgrade_selection.show_choices(player.upgrades.roll(3, Upgrade.Rarity.RARE))
 
 
 ## Next floor: full health, lives back to 3, unused potions carried over.
@@ -147,6 +225,7 @@ func continue_to_next_floor() -> void:
 	player.upgrades.clear()
 	dungeon_ai.reset()
 	_new_unlocks.clear()
+	run_stats.reset(GameManager.floor_number, true)
 	player.respawn(player.global_position)
 	room_manager.start_floor(GameManager.floor_number)
 

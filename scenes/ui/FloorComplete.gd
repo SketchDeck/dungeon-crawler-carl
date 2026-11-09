@@ -21,13 +21,24 @@ func _ready() -> void:
 	_menu.pressed.connect(_close.bind(main_menu_requested))
 
 
-func show_screen(floor_number: int, lives: int, potions: int, unlocks: Array[StringName] = []) -> void:
+func show_screen(floor_number: int, lives: int, potions: int, unlocks: Array[StringName] = [], summary := {}) -> void:
 	var has_next := FloorData.has_floor(floor_number + 1)
 	_title.text = "%s COMPLETE" % FloorData.floor_name(floor_number).to_upper()
 	var lines := [
 		"The %s is down. The crowd goes wild." % FloorData.boss_name(floor_number),
 		"Lives left: %d   ·   Potions: %d" % [lives, potions],
 	]
+	if not summary.is_empty():
+		lines.append("")
+		lines.append("GRADE %s%s" % [summary["grade"], "   ·   NEW BEST!" if summary.get("new_best", false) else ""])
+		lines.append("Viewers: %d   ·   Time: %s   ·   Kills: %d" % [summary["viewers"], RunStats.format_time(summary["time"]),
+			summary["kills"]])
+		lines.append("Damage taken: %d   ·   Deaths: %d   ·   Potions drunk: %d" % [roundi(summary["damage_taken"]),
+			summary["deaths"], summary["potions_used"]])
+		var best := GameManager.best_run(floor_number)
+		if not best.is_empty() and not summary.get("new_best", false):
+			lines.append("Best: %d viewers (grade %s, %s)" % [best["viewers"], best["grade"], RunStats.format_time(best["time"])])
+		lines.append("")
 	for id in unlocks:
 		lines.append("NEW ABILITY UNLOCKED: %s" % GameManager.ABILITY_NAMES.get(id, String(id)))
 	lines.append("Temporary upgrades end with the floor.")
