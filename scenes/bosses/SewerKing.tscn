@@ -1,0 +1,22 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/bosses/SewerKing.gd" id="1_king"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(70, 64)
+
+[node name="SewerKing" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 1
+floor_snap_length = 8.0
+script = ExtResource("1_king")
+display_name = "Sewer King"
+max_health = 480.0
+body_size = Vector2(70, 64)
+knockback_multiplier = 0.0
+stagger_threshold = 9999.0
+potion_drop_chance = 0.0
+gold_value = 40
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")

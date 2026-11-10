@@ -1,8 +1,393 @@
 # Dungeon Crawler Carl
 
-A minimal Godot 4 web game. No logins, database, backend, or JavaScript packages
-are required. The starter scene draws a room and a player you can move with WASD
-or the arrow keys.
+A 2D action platformer prototype in Godot 4 (GDScript). You play Carl, with
+Princess Donut riding on his shoulder, and kick your way through dungeon rooms.
+No logins, database, backend, or JavaScript packages are required.
+
+**Status: milestones 1–13 done.** Three floors are playable end to end:
+Floor 1 (14 rooms, the Goblin Brute), Floor 2 (15 rooms, Slimes, the
+Mutating Slime) and Floor 3 (13 sewer rooms, the Sewer King), with special abilities, treasure
+upgrades, hazards, Dungeon AI achievements, menus, settings, saves, sound,
+music and controller support. The game opens on the main menu.
+Rooms are connected as in
+[docs/floor-layouts.md](docs/floor-layouts.md). The first four rooms are a
+tutorial, with signs that explain the controls. Doors that lead to different
+paths are labelled (HIGH/LOW, UPPER/MIDDLE/LOWER).
+
+Menus and saves:
+
+- **Main menu:** **Continue** (once you've started a game) starts your latest
+  unlocked floor; once Floor 2 is unlocked you can also pick **Play Floor 1**
+  or **Play Floor 2**. **New Game** asks before erasing your progress (your
+  settings are kept). **Settings**, and **Quit** (hidden in the browser).
+- Starting a floor from the menu is a fresh run: 3 lives, 3 potions, no
+  upgrades. Going straight from Floor 1's Floor Complete screen to Floor 2
+  keeps your potions instead.
+- **Pause** with Esc (Start on a controller): Resume, Settings, Main Menu.
+  It won't open over Game Over, Floor Complete or the treasure screen.
+- **Game Over** and **Floor Complete** also have a Main Menu button.
+- **Settings:** master, music and sound-effect volume, fullscreen, and
+  keyboard remapping for every gameplay action (click an action's key, then
+  press the new key; Esc cancels; **Reset keys** restores the defaults).
+  Controller buttons aren't remappable, and Esc always pauses. The controls
+  hint at the bottom of the HUD follows your bindings.
+- Everything is saved to `user://save.json`: whether you've started a game,
+  completed floors, the unlocked floor, ability unlocks and settings. Never a
+  room in progress, so Continue always starts at a floor's entrance. Losing
+  on Floor 2 doesn't undo Floor 1. A missing or broken save just starts
+  fresh.
+
+Sound and music:
+
+- Placeholder sound effects for attacks, hits, deaths, potions, hazards,
+  boss warnings, achievements and menus, plus looping music: a menu theme,
+  one track per floor and a boss theme (it starts when a boss wakes and
+  hands back to the floor music when the boss dies). Game Over stops the
+  music.
+- Volumes are in Settings (master, music, sound effects).
+- In the browser, sound starts after you click the game (browsers block
+  audio until you interact with the page).
+- Every sound is synthesized by `tools/gen_audio.py` into `assets/sounds/`
+  and `assets/music/` (music is Ogg Vorbis, so `make audio` needs
+  `oggenc`: `brew install vorbis-tools`). Edit a recipe there and run
+  `make audio` to regenerate.
+
+Controller:
+
+- Every action has a controller button (see Controls), and menus work with
+  the D-pad/stick, A to confirm and B to go back.
+- Prompts follow the device you last touched: the HUD hints, ability slots
+  and "[LT] Open chest" style prompts switch between keyboard keys and
+  controller buttons automatically, and so do tutorial signs.
+
+Combat modes:
+
+- **Tab** switches between **Carl** (kicks) and **Princess Donut** (magic).
+  The switch is instant and doesn't change your position, movement, health or
+  potions. The same buttons do each mode's attacks.
+- **Carl:** J is a 10/10/20 kick combo; hold and release K for a power kick
+  (15–35 damage).
+- **Donut:** J fires a magic missile (12 damage, 0.3s cooldown, about 12
+  tiles of range); hold and release K for a charged blast (18–35 damage). The
+  blast's size and knockback grow with the charge.
+- Every ability keeps its own cooldown, and cooldowns keep running in the
+  other mode. Switching can't reset them.
+- Pressing Tab during an attack's wind-up queues the switch until the attack
+  lands. Switching while charging or recovering drops that attack.
+- Bolts already in flight keep going after a switch. Solid walls and locked
+  doors stop them; one-way platforms don't. Bolts also trigger switches.
+- The HUD names the active mode (orange for Carl, purple for Donut) and shows
+  every cooldown. The other mode's slots are dimmed. A glow at Carl's feet
+  shows the mode too.
+
+Special abilities (L, depends on the mode):
+
+- **Explosive Kick (Carl):** tap or hold L, then release. It hits like a power
+  kick (15–35), then explodes at Carl's foot: 20 damage to everything nearby,
+  pushes it away from the blast, and sets off barrels. 3.5s cooldown.
+  **Unlocked by beating Floor 1.**
+- **Area Magic Burst (Donut):** press L. A purple ring shows the radius while
+  Donut casts, then a shockwave deals 22 damage all around you and pushes
+  enemies away. 6s cooldown. **Unlocked by beating Floor 2.**
+- Locked specials show LOCKED on the HUD. For testing, press **U** to unlock
+  both (debug key).
+- Unlocks are permanent and saved in `user://save.json`, together with which
+  floors you've completed. A missing or broken save file just starts fresh.
+
+Treasure and temporary upgrades:
+
+- Opening a challenge room's chest pauses the game and offers **three random
+  upgrades** (name and effect). Pick one with the mouse, keyboard or
+  controller.
+- Each card shows its rarity: **common** (grey), **rare** (blue) or
+  **epic** (purple). Commons come up most often, epics least.
+- **Commons** are stat boosts and stack: Steel-Toed Boots (+25% kick
+  damage), Tiara Polish (+25% magic damage), Extra Oomph (+30% knockback),
+  Quick Reflexes (−20% cooldowns), Hearty Snack (+20 max HP) and Fresh Socks
+  (+12% move speed). Cooldowns never drop below 40%.
+- **Rares and epics** change how you play. You can hold one of each, and
+  a chest never offers one you already have:
+  - Laser-Guided Tiara (rare): bolts fly through enemies.
+  - Seismic Stomp (rare): the third kick sends a 14-damage shockwave along
+    the floor.
+  - Hot Feet (rare): dodging leaves fire (6 damage every 0.3s).
+  - Explosive Digestion (rare): drinking a potion blasts nearby enemies (20).
+  - Tag-In Fury (rare): switching modes gives +50% damage for 1.5s.
+  - Bloodthirsty Cat (rare): each kill heals 4 HP.
+  - Tag Team (rare): switching instantly readies the new mode's attacks.
+    Pairs well with Tag-In Fury.
+  - Volatile Corpses (epic): enemies you kill explode for 15 damage, which
+    can chain.
+  - Double Tap (epic): magic missiles fire a second bolt at 60% damage.
+  - Juggle Master (epic): juggling does ×3 magic damage instead of ×2.
+- Strengths live in `resources/upgrades/*.tres` (`amount`, `rarity`).
+- Upgrades last for the current floor: you keep them when you lose a life,
+  and lose them when the floor restarts (Game Over or Replay) or is completed.
+  The HUD lists the ones you have.
+
+Environmental combat:
+
+- **Spikes** (in shallow pits) hurt anything that touches them: 15 to you
+  (you bounce out), 30 to enemies. Kick goblins in to finish them off.
+  Goblins won't walk in on their own.
+- **Explosive barrels** blow up shortly after any attack hits them: 30 damage
+  to enemies and 20 to you within the blast, with knockback. Blasts set off
+  other barrels.
+- **Crates and cracked walls** only break under strong hits: the third kick
+  of a combo, a power kick, a charged blast (half charge or more),
+  explosions and the Magic Burst. Crates hold a potion; the cracked wall in
+  Crossroads Rest (F1-06) hides one.
+- **Enemy collisions:** an enemy knocked back hard (third kick, power kick,
+  big blasts) that slams into another enemy deals 15 to it and takes 8
+  itself, once per pair per knockback.
+- None of this is required to clear a room.
+
+Dungeon AI achievements, loot boxes and viewers (Milestone 11):
+
+- The Dungeon AI announces showy plays in a panel at the top right. It never
+  pauses the game, and several announcements queue up.
+- There are 22 achievements (see `scripts/Achievements.gd`): Bowling Night
+  (kick an enemy into another), environmental kills, Untouchable, Juggler,
+  First Blood, Triple Kill, Chain Reaction, Overkill, What Shield?, Bat
+  Swatter, Shell Shocked, Dynamic Duo, Close Call, Hoarder, Pit Diver,
+  Renovations (break a cracked wall), Spicy, Stone Cold Sober (a floor with
+  no potions), Deathless, Boss Rush (a boss in under 60s), Nosy Neighbour
+  (find a secret room) and Valued Customer (buy from a shop).
+- Most trigger at most once per room encounter. Restarting a room after
+  dying starts a new encounter. A few (First Blood, Hoarder, Pit Diver,
+  Sober, Deathless, Nosy Neighbour, Valued Customer) trigger once per floor run.
+- Every achievement pays a **loot box** (Bronze, Silver or Gold) and
+  **viewers**. Some also give an instant reward:
+  - Kicking an enemy into another enemy: +50% knockback for this room and
+    the next three.
+  - Environmental kill or Juggler: +25% damage for this room and the next
+    three.
+  - Untouchable: +25 HP straight away.
+- Earning a boost again refreshes it to three rooms rather than stacking.
+  Active boosts show under the HUD's upgrades line. They survive losing a
+  life and end when the floor restarts or is completed.
+- **Loot boxes** wait until you reach a safe-room fountain: "[E] Open N loot
+  boxes" pauses the game and opens them one at a time. Opening boxes doesn't
+  use up the fountain's heal.
+  - Bronze: a potion, or a sponsor shout-out (viewers).
+  - Silver: a random stat upgrade plus a potion.
+  - Gold: a choice of rare or epic upgrades, plus a cosmetic **hat** for
+    Carl. Hats are permanent; change them under Extras.
+  - Unopened boxes carry over to the next floor. Restarting a floor loses
+    them.
+- **Viewers** are the run's score (top right of the HUD): 10 per kill, 15
+  more for stylish kills (juggles, hazards, collisions, explosions, fire), 25
+  per cleared room, 300 per boss, plus 50/120/250 per bronze/silver/gold
+  achievement.
+- The **Floor Complete** screen shows your grade (S, A, B, C or D: viewers
+  against the floor's target, minus a step per death), viewers, time,
+  kills, damage taken, deaths and potions drunk. The best run on each floor
+  is saved.
+- **Extras** on the main menu shows the trophy case (achievements you
+  haven't earned show as ???), Carl's hats and your best runs. Achievements,
+  hats and best runs survive New Game.
+
+Replayability (Milestone 12):
+
+- **Room variants:** most combat rooms have two layouts with the same exits.
+  Each floor run picks one per room at random, so routes stay the same but
+  rooms play differently.
+- **Random spawns:** `?` in a layout spawns a random enemy from the floor's
+  pool (Floor 1: goblins, shield goblins, bats; Floor 2: slimes, armored
+  slimes, bats, goblins). A restarted room spawns the same enemies.
+- **Sponsor events:** replaying a floor you've already beaten adds one random
+  floor modifier, named in a banner and under the viewer count. Each one
+  multiplies viewers:
+  - Hasty Horde: enemies move and attack 30% faster (x1.3).
+  - Dry Spell: no potion drops (x1.3).
+  - Glass Cannon: you deal and take 50% more damage (x1.4).
+  - Explosive Personality: enemies explode when they die, hurting
+    everything nearby, you included (x1.3).
+  - Beefy Boys: enemies have 50% more health (x1.25).
+- **Hard mode** (main menu toggle, unlocked by beating Floor 2): enemies and
+  bosses have 50% more health, you take 30% more damage, every floor gets a
+  sponsor event, and viewers are x1.5.
+- **Daily Run** (main menu, unlocked by beating Floor 1): Floor 1 with
+  room picks and two sponsor events chosen by the date, the same for
+  everyone that day. Retries replay the same rooms and events. Your best
+  viewer count for each day is saved.
+
+Rooms and lives:
+
+- **Combat rooms** lock their exits until every enemy is dead. A cleared room
+  stays cleared.
+- **Challenge rooms** hold a trial that unlocks a reward chest: climb to it,
+  kick three switches, cross pits, or defeat the guards. Opening the chest
+  lets you choose an upgrade (see below).
+- **Safe rooms** have no enemies and a fountain that fully heals you once per
+  floor run.
+- The **boss room** (F1-08) holds the Goblin Brute (see below). Beating him
+  opens stairs that finish the floor.
+- Doors only lead forward, following the arrows in the layout.
+- You have **3 lives**. Dying costs one life and restarts the current room:
+  its enemies come back, you return to full health, and you keep your
+  potions. Progress in other rooms is kept.
+- Losing the last life shows **Game Over**. Restarting the floor sends you
+  back to the entrance with 3 lives, 3 potions and every room reset.
+- Falling into a pit costs 20 HP and returns you to the room's entrance.
+
+The Goblin Brute (Floor 1 boss):
+
+- The fight starts when you walk past the arena sign. A boss health bar
+  appears at the top of the screen, and there's no automatic healing until
+  he's beaten. Potions still work.
+- Every attack has a warning, then a recovery window afterwards:
+  - **Charge:** he crouches, a red arrow and "!!" show the direction, then he
+    rushes across the arena (20 damage). Jump over him, dodge through, or
+    stand on a platform. If he hits a wall he's dazed for 1.6s.
+  - **Ground slam:** fists up and red stripes on the floor, then a shockwave
+    runs along the ground both ways (15 damage). Jump it or stand on a
+    platform.
+  - **Club swing:** club pulled back and a red box shows its reach (22
+    damage). Back off or dodge through.
+- **Phase 2** starts at half health: he roars (immune briefly), turns red,
+  and gets faster. Warnings are 25% shorter, recovery is about half as long,
+  he charges faster, shockwaves travel almost twice as far, and he sometimes
+  chains a second attack straight after the first.
+- He has 360 HP and can't be knocked back. He's immune while roaring. He
+  drops 2 potions when he dies.
+- Dying in the fight costs a life and resets him to full health.
+- After he's beaten, take the stairs for the **Floor Complete** screen and
+  **Continue to Floor 2**: full health, lives back to 3, unused potions come
+  with you, Floor 1's upgrades and boosts end. Beating him marks Floor 1 as
+  completed, unlocks Floor 2 and the Explosive Kick, and saves that progress.
+  (You can also replay Floor 1 from the start.)
+
+Floor 2 enemies:
+
+- **Slimes** sit still, squash down and flash (with a "!") and then hop at
+  you. They only hurt while they're in the air (10 damage), so you can stand
+  next to a resting slime safely. They won't hop off ledges or into spike
+  pits on their own, but you can kick them in.
+
+Enemies that want a particular mode (Milestone 9):
+
+- An icon over these enemies shows their weakness: an orange **boot** means
+  kicks, a purple **star** means magic. It grows when you hit them the wrong
+  way, along with a "clank" and a BLOCKED message.
+- **Shield Goblin** (Floor 1): kicks from the front clank off its shield.
+  Magic gets through, and so do kicks from behind (jump over it) and
+  explosions. 60 HP.
+- **Cave Bat** (both floors): hovers above you, out of reach of a standing
+  kick, flashes red, then dives at where you were standing (10 damage). Donut's
+  bolts curve up or down toward flying enemies, so magic is the easy answer;
+  a jump kick also works. 20 HP.
+- **Armored Slime** (Floor 2): magic splashes off its shell and light kicks do
+  half damage. A heavy kick (combo finisher, power kick) or an explosion
+  cracks the shell, and then magic does 1.5× damage.
+- **Juggling:** a heavy kick (combo finisher or power kick) launches an
+  enemy. Magic that hits it before it lands does **double damage** and
+  earns the Juggler achievement.
+
+The Mutating Slime (Floor 2 boss):
+
+- Same rules as the Brute: wakes when you walk in, boss bar, no auto-heal,
+  immune while transforming, 2 guaranteed potions, resets if you die.
+- **Glob volley:** it swells while dotted arcs show where each glob will
+  land (red marks on the floor), then lobs 5 globs (12 damage each). The arcs
+  are fixed, so stand in a gap between marks.
+- **Jump slam:** it crouches while a red marker shows where it will land
+  (where you were standing), then leaps there (20 damage if it lands on you)
+  and leaves an acid pool (8 damage while you stand in it). Move away.
+- **Phase 2** (half health): it turns purple, warnings get 25% shorter and
+  recovery shorter, it lobs 7 globs that each leave a small acid pool,
+  landing pools get bigger and last longer, and it splits off pairs of
+  **mini slimes**. The minis and all acid vanish when it dies.
+- It has 420 HP. Beating it completes Floor 2, permanently unlocks the Magic
+  Burst, and ends the run (Floor Complete lets you replay Floor 2).
+
+Floor 3: The Sewers (Milestone 13):
+
+- Reached by beating Floor 2 (Continue on the Floor Complete screen, or the
+  main menu's floor select). 13 rooms, including a secret one.
+- **Sewer Rats** (22 HP) come in packs. They flash red, then lunge (8
+  damage).
+- **Water currents** carry anyone standing on them sideways. Enemies drift
+  too.
+- **Crumbling catwalks** give way half a second after you land on them and
+  grow back 2.5s later.
+- **Lifts** slide back and forth along their track.
+- **Dark rooms:** the screen is dimmed. Carl's glow is small; Donut's glow
+  is much bigger and every bolt lights its path, so switch to Donut to see.
+  Doors, fountains, chests and shops have a faint light.
+- **Secret room:** one of the cracked walls in Floodway (F3-D1) hides a door
+  to a stash. Finding it earns Nosy Neighbour.
+- **Gold:** every enemy drops gold during a run (bosses drop lots).
+  It shows next to the viewers, carries over to the next floor like loot
+  boxes, and is lost if the floor restarts.
+- **Shops:** the goblin merchant in Floor 3's safe rooms sells a health
+  potion (12 gold), a bronze loot box (20), a stat upgrade choice (40) and
+  a rare upgrade choice (85). Upgrade picks appear when you leave the shop.
+- **The Sewer King** (480 HP) switches stances: **slick** (purple: kicks
+  slide off, use magic) and **plated** (steel scales: magic splashes off,
+  use kicks). The icon over his crown shows which. He swaps every 7s, or
+  sooner after taking 70 damage. Attacks: a tail sweep along the floor
+  (jump it), sludge waves both ways (jump them) and a rat call (rats from
+  the side pipes). Phase 2 at half health: faster swaps and tells, longer
+  waves, three rats per call. His rats die with him.
+
+Learning, UI and accessibility:
+
+- **Tips:** one-time hints appear near the bottom of the screen the first
+  time something new happens: an enemy shrugs off a hit, your first loot
+  box, gold, a dark room, a boss room, Donut mode. Each tip shows once,
+  ever, and tips use your current keys or buttons.
+- **Pause menu → Controls** lists every control with your current bindings.
+- **Practice** (main menu) opens a Training Room with three dummies (plain,
+  magic only, kicks only) that never die and show the damage you dealt in
+  the last 3 seconds, plus a barrel and a crate. Nothing there earns
+  achievements. Leave through the pause menu.
+- **Minimap** (bottom right): every room on the floor, left to right from the
+  entrance, with upper and lower paths above and below. Visited rooms are
+  filled and the current room pulses. Secret rooms stay hidden until found.
+- **Slow motion:** the last kill in a combat room plays in brief slow motion.
+- **Settings → accessibility:**
+  - Screen shake on/off.
+  - Assist mode: 5 lives instead of 3, and boss warnings last 40% longer.
+  - Colour-blind warnings: enemies and bosses flash yellow instead of red
+    before attacking.
+
+Health and healing rules:
+
+- You start with **3 potions** and can carry at most **10**. Each potion heals
+  **30 HP**, capped at your maximum. A potion isn't used up if you're at full
+  health, and there's a 0.5s cooldown between drinks.
+- Enemies drop a potion **20%** of the time (`potion_drop_chance`). If you
+  already carry 10, a potion stays on the ground until you have room.
+- **Automatic healing:** 3 seconds after combat ends, health regenerates to
+  full over 10 seconds. Fighting again, taking damage or dying stops it; any
+  healing already done is kept. It never runs during a boss fight.
+- You're **in combat** while any enemy is chasing you (an enemy keeps chasing
+  until it dies or loses you for 3 seconds) or while a room or boss encounter
+  is active.
+
+## Controls
+
+| Action | Keyboard | Controller |
+|---|---|---|
+| Move | A/D or arrows | Left stick / D-pad |
+| Jump (hold for higher) | Space | South face button |
+| Dodge | Left Shift | Right shoulder |
+| Switch Carl / Donut | Tab | Left shoulder |
+| Carl: kick combo (tap ×3) · Donut: magic missile | J | West face button |
+| Carl: power kick · Donut: charged blast (hold, release) | K | North face button |
+| Special: Explosive Kick · Magic Burst (once unlocked) | L | East face button |
+| Drink potion | H | D-pad Down |
+| Interact (chest, fountain) | E | Left trigger |
+| Pause | Esc | Start |
+| Skip to next room (debug) | N | — |
+| Unlock both specials (debug) | U | — |
+
+Keyboard keys can be changed in Settings. Menus work with the mouse, the
+arrow keys + Enter/Esc, or the D-pad/stick + A/B (B also closes the pause
+menu). The N debug key goes through
+the room's first exit even when it's locked. Turn off both debug keys with
+`debug_keys` on the Main node.
 
 ## Prerequisites
 
@@ -21,9 +406,90 @@ Make expects `godot` on your PATH. Override it if needed, for example
 make editor
 ```
 
-Alternatively, import `project.godot` directly in Godot. Press **F6** to run the
-current scene or **F5** to run the project. Start building in `scenes/main.tscn`
-and `scripts/main.gd`; there are no external assets to download.
+Alternatively, import `project.godot` directly in Godot. Press **F5** to run the
+project. There are no external assets to download: all art is drawn in code,
+and the sounds in `assets/` are generated by `tools/gen_audio.py`.
+
+### Project layout
+
+```text
+scenes/main/        Main.tscn — game root (player, HUD, room manager, lives flow)
+scenes/player/      Player.tscn + PlayerController (movement), PlayerCombat,
+                    PlayerHealth, PotionInventory, HealthRegen (auto-heal),
+                    PlayerUpgrades (temporary upgrades), PlayerVisual (placeholder art)
+scenes/enemies/     EnemyBase.gd (health/knockback/death/drops), Goblin, Slime, MiniSlime
+scenes/bosses/      BossBase.gd (shared boss rules), GoblinBoss (Goblin Brute), Shockwave,
+                    SlimeBoss (Mutating Slime), SlimeGlob, AcidPool
+scenes/pickups/     PotionPickup
+scenes/rooms/       RoomBase.gd (builds a room from its text map); floor1/, floor2/ room scenes
+scenes/environment/ SolidBlock, Door, FloorExit (stairs), Chest, Fountain, FloorSwitch, RoomSign,
+                    SpikeTrap, ExplosiveBarrel, Breakable (crates, cracked walls)
+scenes/ui/          MainMenu (start scene), PauseMenu, SettingsMenu, HUD (incl. AbilityBar
+                    cooldowns, boss bar, AchievementPanel), GameOver, FloorComplete,
+                    UpgradeSelection
+scripts/            GameManager.gd (autoload: lives, unlocks, gameplay events),
+                    SaveManager.gd (autoload: user://save.json), Settings.gd (autoload:
+                    volume, fullscreen, key remapping), DungeonAIManager.gd
+                    (achievements), RoomManager.gd (transitions,
+                    room state), FloorData.gd (floor -> room scenes),
+                    CombatStateManager.gd, Fx.gd, GameCamera.gd
+scripts/abilities/  Ability base; Carl: KickCombo, ChargedKick, ExplosiveKick;
+                    Donut: MagicMissile, ChargedBlast, AreaBurst
+scripts/combat/     Hit, HitQuery (instant hitbox queries), MagicProjectile (Donut's bolts),
+                    Explosion (radial damage)
+resources/upgrades/ Upgrade.gd + one .tres per temporary upgrade
+scripts/fx/         Placeholder effects; scripts/Fx.gd autoload (shake, hit stop)
+scripts/Audio.gd    Autoload: sound effects and music (SFX/Music buses)
+assets/sounds/      Generated sound effects (WAV)   assets/music/  Generated music loops
+tools/gen_audio.py  Synthesizes everything in assets/ (make audio)
+tests/              Headless test runner
+```
+
+Tuning values (speeds, jump, dodge, damage, cooldowns, enemy stats) are
+`@export` variables, so you can change them in the Inspector.
+
+### Editing rooms
+
+Each room scene's `layout` property is a text map of 32px tiles. The room is
+built from it when the game runs, so the map won't show in the editor's 2D
+view. Legend:
+
+```text
+#  solid      =  one-way platform   G  gate (opens when the trial is done)
+E  entrance   1-9  exit door N      g  Goblin     s  Slime
+h  Shield Goblin    a  Armored Slime    v  Cave Bat (flies; spawns in mid-air)
+?  random enemy from the floor's pool (FloorData "enemies")
+r  Sewer Rat    > <  water current (floor)    ~  crumbling catwalk    L  lift track
+M  merchant
+C  chest      F  fountain           S  switch     i  sign     B  boss spawn
+X  stairs to the next floor (open once the boss is beaten)
+^  spikes (replace the top floor row to make a 1-tile-deep spike pit)
+x  explosive barrel   b  crate (holds a potion)   W  cracked wall (solid until broken)
+```
+
+To add a variant of a room, make another scene with the same `room_id`,
+`room_type` and `exits`, and list both paths for that id in
+`scripts/FloorData.gd`. `make test` checks every variant.
+
+Rooms can also set `dark = true` (lit only by the player and Donut's magic),
+`secret = true` (awards Nosy Neighbour on entry) and `secret_exits` (exit
+indices whose doors sit behind cracked walls).
+
+Signs take their text from `signs`, in reading order. Write `{jump}`,
+`{switch_mode}` and so on (any input action name) to show the player's
+current key or controller button. Exit door N leads to
+`exits[N-1]`. A full jump clears 3 tiles, so keep steps at 3 tiles or less.
+Running jumps reach about 5 tiles across (4 at full height), so pits can be
+up to 4 tiles wide. `make test` checks every room's map: it confirms each
+exit, chest, switch, fountain, enemy and one-way platform can be reached
+from the entrance, and tests
+the jump height and pit crossing with real physics.
+
+## Share with the team
+
+To let people play without repo access, run `make playtest` and upload
+`build/dcc-playtest.zip` to a private itch.io page. Step-by-step setup is in
+[docs/playtesting.md](docs/playtesting.md).
 
 ## Run in a browser
 
@@ -63,13 +529,103 @@ On Windows, use `py -3` instead of `python3`.
 
 ```sh
 make check  # Import/parse project resources, then run a short headless smoke check
+make test   # Run the headless test suite (tests/TestRunner.tscn); exit code 1 on failure
 make web    # Export the browser build (requires matching export templates)
+make audio  # Regenerate the sound effects and music in assets/ (Python 3)
+make playtest  # Release web build without debug keys + build/dcc-playtest.zip for itch.io
+make itch ITCH_TARGET=user/game  # Build and upload with butler (see docs/playtesting.md)
 make clean  # Remove generated builds
 ```
 
-There is no automated gameplay test suite yet. To smoke-test a change, run
-`make check`, export with `make web`, and open the locally served game. Check
-movement in all directions and verify the player stays inside the room.
+`make test` runs the logic and physics tests in simulated time (`--fixed-fps`),
+so tests that wait out the 13 seconds of regeneration still finish in a few
+seconds. The tests cover:
+
+- **Combat:** health clamping, invulnerability, kick damage, combo timing,
+  power-kick scaling, knockback direction, Goblin attacks, dead enemies not
+  attacking, dodge i-frames, respawn.
+- **Potions:** heal amounts, potion count, the empty/full/dead/cooldown
+  checks, the 10-potion cap, drop rate, pickups, and potions left on the
+  ground when you're full.
+- **Combat state and healing:** combat starting and ending, the 3s wait,
+  10s to full, combat stopping regeneration and the new rate afterwards,
+  potions during regeneration, no healing while dead or during a boss fight,
+  and potions kept after death.
+- **Rooms and lives:** Floor 1 rooms and exits match the layout doc,
+  transitions arrive in the right room, combat rooms lock and unlock, cleared
+  rooms stay cleared, each death costs exactly one life and resets the room,
+  Game Over restarts the floor, pit falls, all three trial types, the
+  fountain, and the jump-height rule.
+- **Donut combat:** instant switching keeps position, health and movement;
+  switches queue during a wind-up; missile and blast damage, range, facing
+  and charge scaling; cooldowns survive switching; bolts keep flying after a
+  switch, stop at walls, pass one-way platforms, trigger switches, and are
+  removed when the room changes.
+- **Goblin Brute:** immune until the fight starts; each attack's warning
+  comes before its damage (swing 22, slam 15, charge 20); dodging the swing,
+  jumping or standing on a platform avoids the shockwave; phase 2 at 50% with
+  an immune roar, faster warnings, shorter recovery, longer shockwaves and at
+  most two chained attacks; no attack three times in a row; no attacks after
+  death; 2 potion drops; the boss room flow (wakes on approach, boss bar,
+  encounter ends, floor unlocked, auto-heal returns 3s later); dying resets
+  the boss; the stairs and Floor Complete replay.
+- **Progression and environment:** specials locked until unlocked; Explosive
+  Kick and Magic Burst damage, radius and knockback; beating Floor 1/2
+  unlocks each special once; unlocks survive a reload from the save file;
+  missing, broken or wrong-typed save files fall back to defaults; the debug
+  unlock; every upgrade's effect, stacking, the cooldown floor and exact
+  reset; three distinct choices per chest; the chest → pause → pick → resume
+  flow; upgrades kept after death but cleared on floor restart; spikes hurt
+  the player and kill enemies (credited to the hazard); barrels explode,
+  chain and hurt both sides; crates and walls need strong hits; enemy
+  collisions damage once; weak hits cause no collision. Tests use their own
+  save file, never `user://save.json`.
+- **Floor 2:** rooms and exits match the layout doc and every room is
+  reachable through doors; every room's map passes the reachability check;
+  slimes telegraph and hop at you, only hurt while airborne, avoid spike
+  pits and can't hurt once dead; the Mutating Slime's globs land where the
+  telegraph shows, standing in a gap is safe, the jump lands on the marker
+  and leaves acid, it ignores one-way platforms, phase 2 adds globs, acid and
+  minis, and death clears minis and acid and drops potions; Floor 1 →
+  Continue → Floor 2 keeps potions and resets lives, health and upgrades;
+  beating Floor 2 unlocks the Magic Burst.
+- **Menus, settings and saves:** progress and settings share the save file
+  without overwriting each other; volume drives the audio buses and
+  persists; fullscreen persists; keys remap (keeping controller buttons and
+  secondary keys), persist and reset, and pause can't be remapped; the main
+  menu hides Continue on a fresh save, offers Continue and floor select after
+  progress, and asks before New Game erases progress (keeping settings);
+  starting a floor from the menu is a fresh run; the pause menu (and the
+  pause key) pauses, resumes, refuses to open over Game Over and leaves to
+  the main menu; Game Over and Floor Complete go to the main menu.
+- **Dungeon AI:** real collisions and deaths reach the AI; each achievement's
+  announcement (title, description, reward) and reward; no repeats within an
+  encounter; boosts last exactly this room and the next three; normal kills
+  don't count as environmental; a spike kill in F1-05 does; getting hit
+  spoils Untouchable; announcements queue and never pause; boosts survive
+  death and clear on floor restart.
+- **Audio, controller and a full run:** every sound the code plays has a
+  file; attacks, hits, deaths, potions, dodges and explosions make sounds;
+  music follows the menu, floors and bosses and stops on Game Over; every
+  gameplay and menu action has a controller binding, the A button jumps and
+  the stick moves; prompts switch between keyboard and controller; and a
+  full run plays both floors start to finish along branching paths
+  (clearing fights, trials and chests, beating both bosses, continuing to
+  Floor 2) and checks the save afterwards.
+
+What the tests can't judge, and still needs checking by hand:
+
+- Game feel and balance: movement, combat, both boss fights (are the
+  warnings readable and the fights fair?), slime timing, upgrade strength.
+- How the generated sounds and music actually sound, and their volume mix.
+  (Tests check that the right sounds are triggered, not what they sound like;
+  headless runs don't play music.)
+- A real gamepad: controller input is tested with simulated events, not on
+  hardware.
+- Fullscreen toggling and the browser build on different browsers.
+
+Also try the specials (press U to unlock them), kick goblins into spikes and
+each other, pick a few upgrades, and earn each Dungeon AI achievement.
 
 Godot's `.godot/` cache, export credentials, and generated `build/` files are
 ignored by Git. The web build also creates `build/.gdignore` so Godot does not

@@ -1,0 +1,33 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/rooms/RoomBase.gd" id="1_room"]
+
+[node name="F1_02_Combat" type="Node2D"]
+script = ExtResource("1_room")
+room_id = "F1-02"
+display_name = "Goblin Greeting Room"
+room_type = 1
+trial = 0
+trial_hint = ""
+exits = PackedStringArray("F1-03")
+signs = PackedStringArray("{basic_attack} kicks. Tap it three times for a combo - the third kick hits hardest.", "Hold {charged_attack}, then release, for a charged power kick. Watch for the red ! before a goblin swings.", "{switch_mode} switches to Princess Donut: {basic_attack} fires a magic missile, hold {charged_attack} for a charged blast. {switch_mode} again for Carl. Power-kick an enemy into the air, then hit it with magic for double damage!")
+layout = "############################################
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#..........................................#
+#...............=========..................#
+#..........................................#
+#E..i...i...i.........g..........g........1#
+############################################
+############################################"

@@ -1,0 +1,35 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/rooms/RoomBase.gd" id="1_room"]
+
+[node name="F3_01_Entrance" type="Node2D"]
+script = ExtResource("1_room")
+room_id = "F3-01"
+display_name = "Sewer Grate"
+room_type = 0
+trial = 0
+trial_hint = ""
+exits = PackedStringArray("F3-02")
+exit_labels = PackedStringArray()
+signs = PackedStringArray("Welcome to the sewers. Rushing water carries you along: walk against it, or jump across.", "Rats come in packs. They flash red, then lunge. Every enemy drops gold now - spend it at the merchants in safe rooms.", "Some tunnels down here are pitch black. Carl's glow is tiny, but Princess Donut's magic lights everything up: switch with {switch_mode}.")
+backdrop_color = Color(0.08, 0.13, 0.13, 1)
+layout = "########################################
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#......................................#
+#E.i.....i............i...............1#
+############>>>>>>>#####################
+########################################"

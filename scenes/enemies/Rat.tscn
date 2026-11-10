@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/enemies/Rat.gd" id="1_rat"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(28, 16)
+
+[node name="Rat" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 1
+floor_snap_length = 4.0
+script = ExtResource("1_rat")
+display_name = "Sewer Rat"
+max_health = 22.0
+body_size = Vector2(28, 16)
+potion_drop_chance = 0.12
+gold_value = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")

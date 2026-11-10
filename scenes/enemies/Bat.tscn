@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/enemies/Bat.gd" id="1_bat"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(26, 18)
+
+[node name="Bat" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 1
+motion_mode = 1
+script = ExtResource("1_bat")
+display_name = "Cave Bat"
+max_health = 20.0
+body_size = Vector2(26, 18)
+potion_drop_chance = 0.15
+gold_value = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")

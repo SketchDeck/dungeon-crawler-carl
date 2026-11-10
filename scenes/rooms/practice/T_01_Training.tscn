@@ -1,0 +1,33 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/rooms/RoomBase.gd" id="1_room"]
+
+[node name="T_01_Training" type="Node2D"]
+script = ExtResource("1_room")
+room_id = "T-01"
+display_name = "Training Room"
+room_type = 2
+trial = 0
+trial_hint = ""
+exits = PackedStringArray()
+signs = PackedStringArray("Training Room. Nothing here can hurt you. Pause ({pause}) and pick Main Menu to leave.", "Carl: {basic_attack} x3 for a kick combo, hold {charged_attack} for a power kick. Donut ({switch_mode}): {basic_attack} missiles, hold {charged_attack} for a blast.", "The star means magic only: switch to Donut with {switch_mode}. The boot means kicks only.", "Power-kick something into the air, switch, and hit it with magic for double damage. The barrel and crate respawn when you re-enter.")
+layout = "##############################################
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#............................................#
+#...................................====.....#
+#............................................#
+#E..i.....d.....i.....j.....i.....k.....i.x.b#
+##############################################
+##############################################"
